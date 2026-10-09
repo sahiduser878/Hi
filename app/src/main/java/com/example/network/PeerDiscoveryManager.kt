@@ -2,6 +2,7 @@ package com.example.network
 
 import android.content.Context
 import android.net.wifi.WifiManager
+import android.util.Log
 import com.example.model.PeerDevice
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -13,7 +14,6 @@ import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
 import java.net.InetSocketAddress
-import java.net.Socket
 
 class PeerDiscoveryManager(
     private val context: Context,
@@ -22,16 +22,22 @@ class PeerDiscoveryManager(
 ) {
     private val scope = CoroutineScope(Dispatchers.IO)
     private var beaconJob: Job? = null
-    private var listenerJob: Job? = null
+    private var senderListenerJob: Job? = null
     private var receiverDiscoveryJob: Job? = null
     private var multicastLock: WifiManager.MulticastLock? = null
+
+    companion object {
+        private const val TAG = "PeerDiscovery"
+    }
 
     init {
         try {
             val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
             multicastLock = wifiManager?.createMulticastLock("swiftshare_multicast")
             multicastLock?.setReferenceCounted(true)
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to create multicast lock", e)
+        }
     }
 
     /**
@@ -57,42 +63,55 @@ class PeerDiscoveryManager(
 
             var socket: DatagramSocket? = null
             try {
-                socket = DatagramSocket()
-                socket.broadcast = true
+                socket = DatagramSocket().apply {
+                    broadcast = true
+                }
 
                 while (isActive) {
-                    val localIp = NetworkUtils.getLocalIpAddress(context)
-                    val message = "$prefixHeader:$deviceName:$localIp:$port"
+                    val localIps = NetworkUtils.getAllLocalIpAddresses(context)
+                    val primaryIp = NetworkUtils.getLocalIpAddress(context)
+                    val message = "$prefixHeader:$deviceName:$primaryIp:$port"
                     val data = message.toByteArray(Charsets.UTF_8)
 
-                    // 1. Send to standard broadcast
+                    // 1. Send to standard global broadcast
                     try {
                         val broadcastAddr = InetAddress.getByName("255.255.255.255")
-                        val packet = DatagramPacket(data, data.size, broadcastAddr, broadcastPort)
-                        socket.send(packet)
+                        socket.send(DatagramPacket(data, data.size, broadcastAddr, broadcastPort))
                     } catch (_: Exception) {}
 
-                    // 2. Subnet broadcast
-                    if (localIp.contains(".")) {
-                        try {
-                            val prefix = localIp.substringBeforeLast(".")
-                            val subnetBroadcast = InetAddress.getByName("$prefix.255")
-                            val packet = DatagramPacket(data, data.size, subnetBroadcast, broadcastPort)
-                            socket.send(packet)
-                        } catch (_: Exception) {}
+                    // 2. Send to every active local subnet's directed broadcast
+                    for (ip in localIps) {
+                        if (ip.contains(".")) {
+                            try {
+                                val prefix = ip.substringBeforeLast(".")
+                                val subnetBroadcast = InetAddress.getByName("$prefix.255")
+                                socket.send(DatagramPacket(data, data.size, subnetBroadcast, broadcastPort))
+                            } catch (_: Exception) {}
+                        }
                     }
 
                     // 3. Android Hotspot default subnet broadcast (192.168.43.255)
                     try {
                         val hotspotBroadcast = InetAddress.getByName("192.168.43.255")
-                        val packet = DatagramPacket(data, data.size, hotspotBroadcast, broadcastPort)
-                        socket.send(packet)
+                        socket.send(DatagramPacket(data, data.size, hotspotBroadcast, broadcastPort))
                     } catch (_: Exception) {}
+
+                    // 4. DHCP Gateway broadcast if connected as client to another device's Hotspot
+                    val gatewayIp = NetworkUtils.getHotspotGatewayIp(context)
+                    if (gatewayIp.contains(".")) {
+                        try {
+                            val gwPrefix = gatewayIp.substringBeforeLast(".")
+                            val gwBroadcast = InetAddress.getByName("$gwPrefix.255")
+                            socket.send(DatagramPacket(data, data.size, gwBroadcast, broadcastPort))
+                            // Also send directly to gateway IP
+                            socket.send(DatagramPacket(data, data.size, InetAddress.getByName(gatewayIp), broadcastPort))
+                        } catch (_: Exception) {}
+                    }
 
                     delay(1200)
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "Error in beacon loop for $prefixHeader", e)
             } finally {
                 try {
                     socket?.close()
@@ -105,11 +124,11 @@ class PeerDiscoveryManager(
     }
 
     /**
-     * Sender calls this to listen for active Receiver beacons and broadcast search probes.
+     * Sender calls this to listen for active Receiver beacons and search probes.
      */
     fun startSenderDiscovery(onReceiverFound: (PeerDevice) -> Unit) {
-        stopDiscovery()
-        listenerJob = scope.launch {
+        senderListenerJob?.cancel()
+        senderListenerJob = scope.launch {
             listenForPeers("SWIFTSHARE_RECEIVER", "Receiver", onReceiverFound)
         }
     }
@@ -138,76 +157,61 @@ class PeerDiscoveryManager(
             socket = DatagramSocket(null).apply {
                 reuseAddress = true
                 bind(InetSocketAddress(broadcastPort))
-                soTimeout = 2000
+                soTimeout = 2500
             }
 
-            val buffer = ByteArray(1024)
+            val buffer = ByteArray(2048)
             val packet = DatagramPacket(buffer, buffer.size)
 
             while (scope.isActive) {
                 try {
                     socket.receive(packet)
                     val text = String(packet.data, 0, packet.length, Charsets.UTF_8).trim()
-                    val senderIp = packet.address?.hostAddress ?: ""
+                    val packetSenderIp = packet.address?.hostAddress ?: ""
 
                     if (text.startsWith("$expectedPrefix:")) {
                         val parts = text.split(":")
-                        val deviceName = if (parts.size >= 2) parts[1] else "$defaultRoleName Device"
-                        val declaredIp = if (parts.size >= 3 && parts[2].isNotBlank()) parts[2] else senderIp
+                        val deviceName = if (parts.size >= 2 && parts[1].isNotBlank()) parts[1] else "$defaultRoleName Device"
+                        val declaredIp = if (parts.size >= 3 && parts[2].isNotBlank()) parts[2] else packetSenderIp
                         val targetPort = if (parts.size >= 4) parts[3].toIntOrNull() ?: tcpPort else tcpPort
 
-                        val finalIp = if (declaredIp != "127.0.0.1" && declaredIp.isNotBlank()) declaredIp else senderIp
-                        if (finalIp.isNotBlank()) {
+                        // Crucial fix: The packet's physical source IP (packetSenderIp) arrived over
+                        // the shared radio link, making it the most reliable reachable address.
+                        val effectiveIp = if (packetSenderIp.isNotBlank() && packetSenderIp != "127.0.0.1") {
+                            packetSenderIp
+                        } else if (declaredIp.isNotBlank() && declaredIp != "127.0.0.1") {
+                            declaredIp
+                        } else {
+                            ""
+                        }
+
+                        val altIp = if (declaredIp.isNotBlank() && declaredIp != effectiveIp && declaredIp != "127.0.0.1") {
+                            declaredIp
+                        } else null
+
+                        if (effectiveIp.isNotBlank()) {
+                            Log.d(TAG, "Discovered $defaultRoleName: '$deviceName' at $effectiveIp:$targetPort (alt=$altIp)")
                             onDeviceFound(
                                 PeerDevice(
-                                    id = "peer_$finalIp",
+                                    id = "peer_${effectiveIp}_$targetPort",
                                     name = deviceName,
-                                    ipAddress = finalIp,
+                                    ipAddress = effectiveIp,
                                     port = targetPort,
                                     deviceType = "Android",
-                                    signalStrength = 95
+                                    signalStrength = 95,
+                                    alternateIp = altIp
                                 )
                             )
                         }
                     }
                 } catch (_: java.net.SocketTimeoutException) {
-                    // Socket timeout is normal; loop continues
-                } catch (_: Exception) {}
-
-                // Active subnet & Hotspot probe fallback in background every loop iteration
-                val localIp = NetworkUtils.getLocalIpAddress(context)
-                val testIps = mutableListOf<String>()
-
-                // Check Hotspot gateway (192.168.43.1)
-                testIps.add("192.168.43.1")
-                testIps.add("192.168.49.1")
-
-                if (localIp.contains(".") && localIp != "127.0.0.1") {
-                    val prefix = localIp.substringBeforeLast(".")
-                    val lastOctet = localIp.substringAfterLast(".").toIntOrNull() ?: 1
-                    testIps.add("$prefix.1")
-                    testIps.add("$prefix.2")
-                    if (lastOctet > 1) testIps.add("$prefix.${lastOctet - 1}")
-                    if (lastOctet < 254) testIps.add("$prefix.${lastOctet + 1}")
-                }
-
-                for (testIp in testIps.distinct()) {
-                    if (testIp != localIp && isPortOpen(testIp, tcpPort, 150)) {
-                        onDeviceFound(
-                            PeerDevice(
-                                id = "peer_$testIp",
-                                name = "$defaultRoleName ($testIp)",
-                                ipAddress = testIp,
-                                port = tcpPort,
-                                deviceType = "Android",
-                                signalStrength = 94
-                            )
-                        )
-                    }
+                    // Normal timeout for soTimeout
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error receiving peer packet", e)
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "Error in listenForPeers socket setup", e)
         } finally {
             try {
                 socket?.close()
@@ -218,25 +222,14 @@ class PeerDiscoveryManager(
         }
     }
 
-    private fun isPortOpen(ip: String, port: Int, timeoutMs: Int): Boolean {
-        return try {
-            Socket().use { s ->
-                s.connect(InetSocketAddress(ip, port), timeoutMs)
-                true
-            }
-        } catch (_: Exception) {
-            false
-        }
-    }
-
     fun stopBeacon() {
         beaconJob?.cancel()
         beaconJob = null
     }
 
     fun stopDiscovery() {
-        listenerJob?.cancel()
-        listenerJob = null
+        senderListenerJob?.cancel()
+        senderListenerJob = null
         receiverDiscoveryJob?.cancel()
         receiverDiscoveryJob = null
     }
@@ -244,8 +237,5 @@ class PeerDiscoveryManager(
     fun stopAll() {
         stopBeacon()
         stopDiscovery()
-        try {
-            if (multicastLock?.isHeld == true) multicastLock?.release()
-        } catch (_: Exception) {}
     }
 }

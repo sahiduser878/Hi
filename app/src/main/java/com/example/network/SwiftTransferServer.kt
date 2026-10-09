@@ -2,6 +2,8 @@ package com.example.network
 
 import android.content.Context
 import android.os.Environment
+import android.util.Log
+import com.example.data.FileManagerRepository
 import com.example.model.ShareFileItem
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -9,11 +11,11 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
-import java.io.BufferedReader
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStream
-import java.io.InputStreamReader
 import java.io.OutputStream
 import java.net.ServerSocket
 import java.net.Socket
@@ -23,65 +25,75 @@ class SwiftTransferServer(
     private val context: Context,
     private val port: Int = 8888,
     private val onTransferStarted: (fileName: String, totalBytes: Long) -> Unit = { _, _ -> },
-    private val onProgress: (fileName: String, bytesTransferred: Long, totalBytes: Long, speed: Long) -> Unit,
-    private val onFileReceived: (file: File, originalName: String, size: Long, mimeType: String) -> Unit,
-    private val onPeerConnected: (clientAddress: String) -> Unit,
-    private val onRequestTransferFromPeer: ((peerIp: String, peerPort: Int) -> Unit)? = null
+    private val onProgress: (fileName: String, bytesTransferred: Long, totalBytes: Long, speedBytesPerSec: Long) -> Unit = { _, _, _, _ -> },
+    private val onFileReceived: (file: File, originalName: String, size: Long, mimeType: String) -> Unit = { _, _, _, _ -> },
+    private val onPeerConnected: (clientIp: String) -> Unit = {},
+    var onRequestTransferFromPeer: ((peerIp: String, peerPort: Int) -> Unit)? = null
 ) {
+    companion object {
+        private const val TAG = "SwiftTransferServer"
+    }
+
+    private val scope = CoroutineScope(Dispatchers.IO)
     private var serverSocket: ServerSocket? = null
     private var serverJob: Job? = null
-    private val scope = CoroutineScope(Dispatchers.IO)
-    private var sharedFiles: List<ShareFileItem> = emptyList()
 
-    @Volatile
     var isRunning = false
         private set
 
-    var actualPort = port
+    var actualPort: Int = port
         private set
 
-    fun updateSharedFiles(files: List<ShareFileItem>) {
-        this.sharedFiles = files
-    }
+    var sharedFiles: List<ShareFileItem> = emptyList()
 
     fun start(): Boolean {
         if (isRunning) return true
+
         try {
-            var selectedPort = port
-            var createdSocket: ServerSocket? = null
-            for (offset in 0..10) {
-                try {
-                    createdSocket = ServerSocket(selectedPort + offset)
-                    actualPort = selectedPort + offset
-                    break
-                } catch (_: Exception) {}
+            serverSocket = ServerSocket(port).apply {
+                reuseAddress = true
             }
-
-            if (createdSocket == null) {
-                createdSocket = ServerSocket(0)
-                actualPort = createdSocket.localPort
-            }
-
-            serverSocket = createdSocket
+            actualPort = serverSocket!!.localPort
             isRunning = true
+            Log.i(TAG, "Server started successfully on port $actualPort")
 
             serverJob = scope.launch {
-                while (isRunning && !serverSocket!!.isClosed) {
+                while (isRunning) {
                     try {
                         val client = serverSocket!!.accept()
                         launch {
                             handleClient(client)
                         }
-                    } catch (_: Exception) {
+                    } catch (e: Exception) {
+                        if (isRunning) Log.e(TAG, "Exception in accept loop", e)
                         break
                     }
                 }
             }
             return true
         } catch (e: Exception) {
-            e.printStackTrace()
-            isRunning = false
-            return false
+            Log.e(TAG, "Failed to start server on port $port, trying ephemeral port...", e)
+            try {
+                serverSocket = ServerSocket(0).apply { reuseAddress = true }
+                actualPort = serverSocket!!.localPort
+                isRunning = true
+                Log.i(TAG, "Server started on fallback port $actualPort")
+                serverJob = scope.launch {
+                    while (isRunning) {
+                        try {
+                            val client = serverSocket!!.accept()
+                            launch { handleClient(client) }
+                        } catch (_: Exception) {
+                            break
+                        }
+                    }
+                }
+                return true
+            } catch (ex: Exception) {
+                Log.e(TAG, "Failed to bind any port for SwiftTransferServer", ex)
+                isRunning = false
+                return false
+            }
         }
     }
 
@@ -92,19 +104,24 @@ class SwiftTransferServer(
         } catch (_: Exception) {}
         serverJob?.cancel()
         serverSocket = null
+        Log.i(TAG, "Server stopped")
     }
 
     private fun handleClient(socket: Socket) {
         val clientIp = socket.inetAddress?.hostAddress ?: "Unknown"
+        Log.d(TAG, "Client connected from $clientIp")
         onPeerConnected(clientIp)
 
         try {
             socket.soTimeout = 45000
             val input = BufferedInputStream(socket.getInputStream())
             val output = BufferedOutputStream(socket.getOutputStream())
-            val reader = BufferedReader(InputStreamReader(input))
 
-            val requestLine = reader.readLine() ?: run {
+            // Read HTTP header directly from input stream without wrapping in BufferedReader.
+            // Wrapping input in BufferedReader would buffer ahead into characters,
+            // corrupting binary payload for POST /api/upload!
+            val (requestLine, headers) = readHttpHeader(input)
+            if (requestLine.isBlank()) {
                 socket.close()
                 return
             }
@@ -115,20 +132,12 @@ class SwiftTransferServer(
                 return
             }
 
-            val method = parts[0]
+            val method = parts[0].uppercase()
             val fullPath = parts[1]
             val path = if (fullPath.contains("?")) fullPath.substringBefore("?") else fullPath
             val queryString = if (fullPath.contains("?")) fullPath.substringAfter("?") else ""
 
-            val headers = HashMap<String, String>()
-            var line: String?
-            while (reader.readLine().also { line = it } != null) {
-                if (line.isNullOrBlank()) break
-                val headerParts = line!!.split(":", limit = 2)
-                if (headerParts.size == 2) {
-                    headers[headerParts[0].trim().lowercase()] = headerParts[1].trim()
-                }
-            }
+            Log.d(TAG, "HTTP Request: $method $path (client: $clientIp)")
 
             when {
                 method == "GET" && path == "/" -> {
@@ -139,14 +148,23 @@ class SwiftTransferServer(
                 }
                 method == "GET" && path == "/api/files" -> {
                     val jsonArray = sharedFiles.joinToString(separator = ",", prefix = "[", postfix = "]") { file ->
-                        """{"id":"${file.id}","name":"${escapeHtml(file.name)}","size":${file.size},"mime":"${file.mimeType}"}"""
+                        """{"id":"${file.id}","name":"${escapeJson(file.name)}","size":${file.size},"mime":"${file.mimeType}"}"""
                     }
                     sendHttpResponse(output, 200, "OK", "application/json", jsonArray.toByteArray(Charsets.UTF_8))
                 }
                 method == "POST" && path.startsWith("/api/request_files") -> {
                     val targetPort = extractQueryParam(queryString, "port")?.toIntOrNull() ?: 8888
-                    onRequestTransferFromPeer?.invoke(clientIp, targetPort)
-                    sendHttpResponse(output, 200, "OK", "application/json", """{"status":"transfer_started"}""".toByteArray())
+                    val declaredReceiverIp = extractQueryParam(queryString, "receiverIp")
+                    // If receiverIp was passed and valid, use it; otherwise fallback to socket clientIp
+                    val effectiveReceiverIp = if (!declaredReceiverIp.isNullOrBlank() && declaredReceiverIp != "127.0.0.1") {
+                        declaredReceiverIp
+                    } else {
+                        clientIp
+                    }
+                    Log.i(TAG, "Request files endpoint triggered by $clientIp! targetIp=$effectiveReceiverIp, targetPort=$targetPort")
+                    onRequestTransferFromPeer?.invoke(effectiveReceiverIp, targetPort)
+                    val responseJson = """{"status":"accepted","peer":"$effectiveReceiverIp","port":$targetPort}"""
+                    sendHttpResponse(output, 200, "OK", "application/json", responseJson.toByteArray(Charsets.UTF_8))
                 }
                 method == "GET" && path.startsWith("/api/download") -> {
                     val id = extractQueryParam(queryString, "id")
@@ -161,12 +179,13 @@ class SwiftTransferServer(
                     val contentLength = headers["content-length"]?.toLongOrNull() ?: 0L
                     val rawFilename = headers["x-filename"] ?: extractQueryParam(queryString, "filename")
                     val fileName = if (!rawFilename.isNullOrEmpty()) {
-                        URLDecoder.decode(rawFilename, "UTF-8")
+                        try { URLDecoder.decode(rawFilename, "UTF-8") } catch (_: Exception) { rawFilename }
                     } else {
                         "received_${System.currentTimeMillis()}.bin"
                     }
                     val mimeType = headers["content-type"] ?: "application/octet-stream"
 
+                    Log.i(TAG, "Starting incoming upload: $fileName ($contentLength bytes, mime=$mimeType)")
                     onTransferStarted(fileName, contentLength)
                     handleIncomingUpload(input, contentLength, fileName, mimeType, output)
                 }
@@ -176,12 +195,192 @@ class SwiftTransferServer(
             }
             output.flush()
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "Error handling client $clientIp", e)
         } finally {
             try {
                 socket.close()
             } catch (_: Exception) {}
         }
+    }
+
+    /**
+     * Reads the HTTP header byte-by-byte from BufferedInputStream without reading past \r\n\r\n.
+     * Guarantees the very next byte in input is byte 0 of the HTTP request body!
+     */
+    private fun readHttpHeader(input: BufferedInputStream): Pair<String, Map<String, String>> {
+        val headerBytes = ByteArrayOutputStream()
+        var prev3 = -1
+        var prev2 = -1
+        var prev1 = -1
+
+        while (true) {
+            val b = input.read()
+            if (b == -1) break
+            headerBytes.write(b)
+
+            if (prev1 == '\n'.code && b == '\n'.code) break // \n\n
+            if (prev3 == '\r'.code && prev2 == '\n'.code && prev1 == '\r'.code && b == '\n'.code) break // \r\n\r\n
+
+            prev3 = prev2
+            prev2 = prev1
+            prev1 = b
+
+            if (headerBytes.size() > 65536) { // 64KB max header safety limit
+                break
+            }
+        }
+
+        val headerText = headerBytes.toString("UTF-8")
+        val lines = headerText.lines()
+        val requestLine = lines.firstOrNull()?.trim() ?: ""
+        val headers = HashMap<String, String>()
+
+        for (i in 1 until lines.size) {
+            val line = lines[i].trim()
+            if (line.isEmpty()) continue
+            val idx = line.indexOf(':')
+            if (idx != -1) {
+                val key = line.substring(0, idx).trim().lowercase()
+                val value = line.substring(idx + 1).trim()
+                headers[key] = value
+            }
+        }
+
+        return Pair(requestLine, headers)
+    }
+
+    private fun handleIncomingUpload(
+        input: InputStream,
+        contentLength: Long,
+        originalFileName: String,
+        mimeType: String,
+        output: OutputStream
+    ) {
+        val destDir = FileManagerRepository.getReceivedFilesDir(context)
+        val targetFile = getUniqueDestinationFile(destDir, originalFileName)
+
+        var totalRead = 0L
+        var lastTime = System.currentTimeMillis()
+        var bytesSinceLastSample = 0L
+        var speed = 0L
+
+        val buffer = ByteArray(64 * 1024)
+        var outStream: FileOutputStream? = null
+
+        try {
+            outStream = FileOutputStream(targetFile)
+            val bytesToReadTotal = if (contentLength > 0) contentLength else Long.MAX_VALUE
+
+            while (totalRead < bytesToReadTotal) {
+                val toRead = if (contentLength > 0) {
+                    minOf(buffer.size.toLong(), bytesToReadTotal - totalRead).toInt()
+                } else {
+                    buffer.size
+                }
+                val read = input.read(buffer, 0, toRead)
+                if (read == -1) break
+                outStream.write(buffer, 0, read)
+                totalRead += read
+                bytesSinceLastSample += read
+
+                val now = System.currentTimeMillis()
+                val delta = now - lastTime
+                if (delta >= 250) {
+                    speed = (bytesSinceLastSample * 1000) / maxOf(1L, delta)
+                    lastTime = now
+                    bytesSinceLastSample = 0L
+                    onProgress(targetFile.name, totalRead, if (contentLength > 0) contentLength else totalRead, speed)
+                }
+            }
+            outStream.flush()
+            outStream.close()
+            outStream = null
+
+            // Validate that we didn't receive an incomplete file
+            if (contentLength > 0 && totalRead < contentLength) {
+                Log.w(TAG, "Upload incomplete: expected $contentLength bytes, but only received $totalRead bytes. Deleting incomplete file.")
+                targetFile.delete()
+                sendHttpResponse(output, 400, "Bad Request", "text/plain", "Incomplete transfer".toByteArray())
+                return
+            }
+
+            onProgress(targetFile.name, totalRead, totalRead, 0L)
+            Log.i(TAG, "File received successfully: ${targetFile.name} ($totalRead bytes) saved to ${targetFile.absolutePath}")
+            onFileReceived(targetFile, targetFile.name, totalRead, mimeType)
+
+            sendHttpResponse(output, 200, "OK", "application/json", """{"status":"ok","fileName":"${escapeJson(targetFile.name)}","bytes":$totalRead}""".toByteArray())
+        } catch (e: Exception) {
+            Log.e(TAG, "Error saving incoming upload", e)
+            try { targetFile.delete() } catch (_: Exception) {}
+            sendHttpResponse(output, 500, "Server Error", "text/plain", "Upload failed".toByteArray())
+        } finally {
+            try {
+                outStream?.close()
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun getUniqueDestinationFile(destDir: File, originalName: String): File {
+        var candidate = File(destDir, originalName)
+        if (!candidate.exists()) return candidate
+
+        val nameWithoutExt = originalName.substringBeforeLast(".")
+        val ext = if (originalName.contains(".")) "." + originalName.substringAfterLast(".") else ""
+        var counter = 1
+
+        while (candidate.exists()) {
+            candidate = File(destDir, "$nameWithoutExt ($counter)$ext")
+            counter++
+        }
+        return candidate
+    }
+
+    private fun streamFileToClient(fileItem: ShareFileItem, output: OutputStream) {
+        var inputStream: InputStream? = null
+        try {
+            inputStream = when {
+                fileItem.uri != null -> context.contentResolver.openInputStream(fileItem.uri)
+                fileItem.filePath != null -> FileInputStream(File(fileItem.filePath))
+                else -> null
+            }
+
+            if (inputStream == null) {
+                sendHttpResponse(output, 404, "Not Found", "text/plain", "Cannot open file".toByteArray())
+                return
+            }
+
+            val fileSize = fileItem.size
+            val headers = "HTTP/1.1 200 OK\r\n" +
+                    "Content-Type: ${fileItem.mimeType}\r\n" +
+                    "Content-Length: $fileSize\r\n" +
+                    "Content-Disposition: attachment; filename=\"${fileItem.name}\"\r\n" +
+                    "Connection: close\r\n\r\n"
+
+            output.write(headers.toByteArray(Charsets.UTF_8))
+            output.flush()
+
+            val buffer = ByteArray(64 * 1024)
+            var bytesRead: Int
+            var totalSent = 0L
+
+            while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                output.write(buffer, 0, bytesRead)
+                totalSent += bytesRead
+            }
+            output.flush()
+            Log.d(TAG, "Finished streaming file: ${fileItem.name} ($totalSent bytes)")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error streaming file ${fileItem.name}", e)
+        } finally {
+            try {
+                inputStream?.close()
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun serveApiInfo(output: OutputStream) {
+        val info = """{"name":"SHAREit Node","port":$actualPort,"filesCount":${sharedFiles.size}}"""
+        sendHttpResponse(output, 200, "OK", "application/json", info.toByteArray(Charsets.UTF_8))
     }
 
     private fun serveWebPortal(output: OutputStream) {
@@ -217,7 +416,7 @@ class SwiftTransferServer(
                     .file-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #F1F5F9; }
                     .file-name { font-weight: 600; font-size: 14px; }
                     .btn-download { background: #1867FF; color: white; text-decoration: none; padding: 8px 16px; border-radius: 8px; font-weight: bold; font-size: 13px; }
-                    .upload-box { border: 2px dashed #1867FF; border-radius: 12px; padding: 24px; text-align: center; cursor: pointer; background: #F0F6FF; }
+                    .empty { text-align: center; color: #94A3B8; padding: 20px; font-size: 14px; }
                 </style>
             </head>
             <body>
@@ -230,156 +429,12 @@ class SwiftTransferServer(
                         <h3>Files Ready to Download</h3>
                         $filesHtml
                     </div>
-                    <div class="card">
-                        <h3>Send Files to Device</h3>
-                        <div class="upload-box" onclick="document.getElementById('f').click()">
-                            <input type="file" id="f" multiple onchange="upload(this.files)" style="display:none">
-                            <span style="color:#1867FF; font-weight:bold;">Click here to select files to send</span>
-                        </div>
-                        <div id="st" style="margin-top:10px; font-size:13px; text-align:center;"></div>
-                    </div>
                 </div>
-                <script>
-                    function upload(files) {
-                        if (!files || !files.length) return;
-                        var file = files[0];
-                        document.getElementById('st').textContent = 'Uploading ' + file.name + '...';
-                        var xhr = new XMLHttpRequest();
-                        xhr.open('POST', '/api/upload?filename=' + encodeURIComponent(file.name), true);
-                        xhr.setRequestHeader('x-filename', encodeURIComponent(file.name));
-                        xhr.onload = function() {
-                            document.getElementById('st').textContent = xhr.status === 200 ? '✅ Successfully transferred to device!' : '❌ Failed';
-                        };
-                        xhr.send(file);
-                    }
-                </script>
             </body>
             </html>
         """.trimIndent()
 
-        sendHttpResponse(output, 200, "OK", "text/html; charset=utf-8", html.toByteArray(Charsets.UTF_8))
-    }
-
-    private fun serveApiInfo(output: OutputStream) {
-        val json = """{"appName":"SHAREit","device":"Android","filesCount":${sharedFiles.size}}"""
-        sendHttpResponse(output, 200, "OK", "application/json", json.toByteArray(Charsets.UTF_8))
-    }
-
-    private fun streamFileToClient(fileItem: ShareFileItem, output: OutputStream) {
-        var inputStream: InputStream? = null
-        try {
-            inputStream = if (fileItem.uri != null) {
-                context.contentResolver.openInputStream(fileItem.uri)
-            } else if (fileItem.filePath != null) {
-                File(fileItem.filePath).inputStream()
-            } else {
-                null
-            }
-
-            if (inputStream == null) {
-                sendHttpResponse(output, 404, "Not Found", "text/plain", "Cannot open file".toByteArray())
-                return
-            }
-
-            val fileSize = fileItem.size
-            val headers = "HTTP/1.1 200 OK\r\n" +
-                    "Content-Type: ${fileItem.mimeType}\r\n" +
-                    "Content-Length: $fileSize\r\n" +
-                    "Content-Disposition: attachment; filename=\"${fileItem.name}\"\r\n" +
-                    "Connection: close\r\n\r\n"
-
-            output.write(headers.toByteArray(Charsets.UTF_8))
-            output.flush()
-
-            val buffer = ByteArray(64 * 1024)
-            var bytesRead: Int
-            var totalSent = 0L
-            var lastTime = System.currentTimeMillis()
-            var bytesSinceLastSample = 0L
-            var speed = 0L
-
-            while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                output.write(buffer, 0, bytesRead)
-                totalSent += bytesRead
-                bytesSinceLastSample += bytesRead
-
-                val now = System.currentTimeMillis()
-                val delta = now - lastTime
-                if (delta >= 300) {
-                    speed = (bytesSinceLastSample * 1000) / delta
-                    lastTime = now
-                    bytesSinceLastSample = 0L
-                    onProgress(fileItem.name, totalSent, fileSize, speed)
-                }
-            }
-            output.flush()
-            onProgress(fileItem.name, totalSent, fileSize, 0L)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        } finally {
-            try {
-                inputStream?.close()
-            } catch (_: Exception) {}
-        }
-    }
-
-    private fun handleIncomingUpload(
-        input: InputStream,
-        contentLength: Long,
-        fileName: String,
-        mimeType: String,
-        output: OutputStream
-    ) {
-        val destDir = com.example.data.FileManagerRepository.getReceivedFilesDir(context)
-        val targetFile = File(destDir, fileName)
-
-        var totalRead = 0L
-        var lastTime = System.currentTimeMillis()
-        var bytesSinceLastSample = 0L
-        var speed = 0L
-
-        val buffer = ByteArray(64 * 1024)
-        var outStream: FileOutputStream? = null
-
-        try {
-            outStream = FileOutputStream(targetFile)
-            val bytesToReadTotal = if (contentLength > 0) contentLength else Long.MAX_VALUE
-
-            while (totalRead < bytesToReadTotal) {
-                val toRead = if (contentLength > 0) {
-                    minOf(buffer.size.toLong(), bytesToReadTotal - totalRead).toInt()
-                } else {
-                    buffer.size
-                }
-                val read = input.read(buffer, 0, toRead)
-                if (read == -1) break
-                outStream.write(buffer, 0, read)
-                totalRead += read
-                bytesSinceLastSample += read
-
-                val now = System.currentTimeMillis()
-                val delta = now - lastTime
-                if (delta >= 300) {
-                    speed = (bytesSinceLastSample * 1000) / delta
-                    lastTime = now
-                    bytesSinceLastSample = 0L
-                    onProgress(fileName, totalRead, if (contentLength > 0) contentLength else totalRead, speed)
-                }
-            }
-            outStream.flush()
-            onProgress(fileName, totalRead, totalRead, 0L)
-
-            onFileReceived(targetFile, fileName, totalRead, mimeType)
-
-            sendHttpResponse(output, 200, "OK", "application/json", "{\"status\":\"ok\"}".toByteArray())
-        } catch (e: Exception) {
-            e.printStackTrace()
-            sendHttpResponse(output, 500, "Server Error", "text/plain", "Upload failed".toByteArray())
-        } finally {
-            try {
-                outStream?.close()
-            } catch (_: Exception) {}
-        }
+        sendHttpResponse(output, 200, "OK", "text/html", html.toByteArray(Charsets.UTF_8))
     }
 
     private fun sendHttpResponse(
@@ -404,13 +459,17 @@ class SwiftTransferServer(
         for (pair in pairs) {
             val keyValue = pair.split("=")
             if (keyValue.size == 2 && keyValue[0] == param) {
-                return URLDecoder.decode(keyValue[1], "UTF-8")
+                return try { URLDecoder.decode(keyValue[1], "UTF-8") } catch (_: Exception) { keyValue[1] }
             }
         }
         return null
     }
 
     private fun escapeHtml(text: String): String {
-        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+    }
+
+    private fun escapeJson(text: String): String {
+        return text.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r")
     }
 }

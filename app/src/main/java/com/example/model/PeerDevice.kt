@@ -8,5 +8,6 @@ data class PeerDevice(
     val deviceType: String = "Android",
     val signalStrength: Int = 95, // 0 - 100
     val isVerified: Boolean = true,
-    val lastSeenTimestamp: Long = System.currentTimeMillis()
+    val lastSeenTimestamp: Long = System.currentTimeMillis(),
+    val alternateIp: String? = null
 )

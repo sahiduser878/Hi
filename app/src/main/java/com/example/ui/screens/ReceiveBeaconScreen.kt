@@ -69,6 +69,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.model.ConnectionState
 import com.example.model.PeerDevice
 import com.example.ui.UiState
 import com.example.ui.components.GlassCard
@@ -236,7 +237,16 @@ fun ReceiveBeaconScreen(
             // Status Texts
             item {
                 Text(
-                    text = "Waiting for sender...",
+                    text = when (uiState.connectionState) {
+                        ConnectionState.CONNECTING -> "Connecting to sender..."
+                        ConnectionState.CONNECTED -> "Connected to sender"
+                        ConnectionState.WAITING_FOR_FILES -> "Waiting for files..."
+                        ConnectionState.RECEIVING -> "Receiving files..."
+                        ConnectionState.COMPLETED -> "Transfer completed"
+                        ConnectionState.FAILED -> "Connection failed"
+                        ConnectionState.DEVICE_DISCOVERED -> "Sender detected nearby"
+                        else -> "Waiting for sender..."
+                    },
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
                         color = GlassTextPrimary,
@@ -245,7 +255,13 @@ fun ReceiveBeaconScreen(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Searching nearby senders on Wi-Fi & Hotspot.\nSender can send, or tap Connect below.",
+                    text = when (uiState.connectionState) {
+                        ConnectionState.CONNECTING -> "Contacting ${uiState.targetPeer?.name ?: "sender"} on local network..."
+                        ConnectionState.CONNECTED -> "Linked! Waiting for sender to stream files..."
+                        ConnectionState.RECEIVING -> "Incoming file beam in progress..."
+                        ConnectionState.FAILED -> "Unable to reach sender. Ensure both devices are on the same Wi-Fi or Hotspot."
+                        else -> "Searching nearby senders on Wi-Fi & Hotspot.\nSender can send, or tap Connect below."
+                    },
                     style = MaterialTheme.typography.bodySmall.copy(
                         color = GlassTextSecondary,
                         textAlign = TextAlign.Center,
@@ -389,19 +405,43 @@ fun ReceiveBeaconScreen(
                                 }
                             }
 
+                            val isConnectingThis = uiState.isConnectingToPeer && uiState.connectingPeerId == sender.id
+                            val isConnectedThis = uiState.connectionState == ConnectionState.CONNECTED && uiState.targetPeer?.id == sender.id
+
                             Button(
                                 onClick = { onConnectToSender(sender) },
+                                enabled = !uiState.isConnectingToPeer,
                                 shape = RoundedCornerShape(16.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = EmeraldPillGreen),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isConnectedThis) ElectricPillBlue else EmeraldPillGreen
+                                ),
                                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                             ) {
-                                Text(
-                                    text = "Connect",
-                                    style = MaterialTheme.typography.labelMedium.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                if (isConnectingThis) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(13.dp),
+                                            strokeWidth = 2.dp,
+                                            color = Color.White
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "Connecting",
+                                            style = MaterialTheme.typography.labelMedium.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
+                                            )
+                                        )
+                                    }
+                                } else {
+                                    Text(
+                                        text = if (isConnectedThis) "Connected" else "Connect",
+                                        style = MaterialTheme.typography.labelMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
                                     )
-                                )
+                                }
                             }
                         }
                     }

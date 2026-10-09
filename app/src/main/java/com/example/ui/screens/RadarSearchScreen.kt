@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.WifiTethering
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -69,6 +70,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.model.ConnectionState
 import com.example.model.FileCategory
 import com.example.model.PeerDevice
 import com.example.ui.UiState
@@ -317,7 +319,14 @@ fun RadarSearchScreen(
             // Status Texts
             item {
                 Text(
-                    text = "Looking for nearby devices...",
+                    text = when (uiState.connectionState) {
+                        ConnectionState.CONNECTING -> "Connecting to ${uiState.targetPeer?.name ?: "receiver"}..."
+                        ConnectionState.TRANSFERRING -> "Transferring files..."
+                        ConnectionState.COMPLETED -> "Transfer completed"
+                        ConnectionState.FAILED -> "Connection or transfer failed"
+                        ConnectionState.DEVICE_DISCOVERED -> "Receiver discovered nearby"
+                        else -> "Looking for nearby devices..."
+                    },
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
                         color = GlassTextPrimary,
@@ -326,7 +335,12 @@ fun RadarSearchScreen(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Make sure receiver is in Receive mode on Wi-Fi or Hotspot.",
+                    text = when (uiState.connectionState) {
+                        ConnectionState.CONNECTING -> "Establishing direct TCP link with receiver..."
+                        ConnectionState.TRANSFERRING -> "Streaming file bytes over Wi-Fi / Hotspot..."
+                        ConnectionState.FAILED -> "Failed to connect. Check Wi-Fi / Hotspot connection."
+                        else -> "Make sure receiver is in Receive mode on Wi-Fi or Hotspot."
+                    },
                     style = MaterialTheme.typography.bodySmall.copy(
                         color = GlassTextSecondary,
                         textAlign = TextAlign.Center,
@@ -457,19 +471,40 @@ fun RadarSearchScreen(
                                 }
                             }
 
+                            val isSendingToThis = (uiState.connectionState == ConnectionState.CONNECTING || uiState.connectionState == ConnectionState.TRANSFERRING) && uiState.targetPeer?.id == peer.id
+
                             Button(
                                 onClick = { onSendToPeer(peer) },
+                                enabled = !uiState.isConnectingToPeer,
                                 shape = RoundedCornerShape(16.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = ElectricPillBlue),
                                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
                             ) {
-                                Text(
-                                    text = "Send",
-                                    style = MaterialTheme.typography.labelMedium.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                if (isSendingToThis) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(13.dp),
+                                            strokeWidth = 2.dp,
+                                            color = Color.White
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "Sending",
+                                            style = MaterialTheme.typography.labelMedium.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
+                                            )
+                                        )
+                                    }
+                                } else {
+                                    Text(
+                                        text = "Send",
+                                        style = MaterialTheme.typography.labelMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
                                     )
-                                )
+                                }
                             }
                         }
                     }
