@@ -1,7 +1,7 @@
 package com.example.network
 
 import android.content.Context
-import android.net.Uri
+import android.os.Environment
 import com.example.model.ShareFileItem
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,9 +22,11 @@ import java.net.URLDecoder
 class SwiftTransferServer(
     private val context: Context,
     private val port: Int = 8888,
+    private val onTransferStarted: (fileName: String, totalBytes: Long) -> Unit = { _, _ -> },
     private val onProgress: (fileName: String, bytesTransferred: Long, totalBytes: Long, speed: Long) -> Unit,
     private val onFileReceived: (file: File, originalName: String, size: Long, mimeType: String) -> Unit,
-    private val onPeerConnected: (clientAddress: String) -> Unit
+    private val onPeerConnected: (clientAddress: String) -> Unit,
+    private val onRequestTransferFromPeer: ((peerIp: String, peerPort: Int) -> Unit)? = null
 ) {
     private var serverSocket: ServerSocket? = null
     private var serverJob: Job? = null
@@ -97,7 +99,7 @@ class SwiftTransferServer(
         onPeerConnected(clientIp)
 
         try {
-            socket.soTimeout = 30000
+            socket.soTimeout = 45000
             val input = BufferedInputStream(socket.getInputStream())
             val output = BufferedOutputStream(socket.getOutputStream())
             val reader = BufferedReader(InputStreamReader(input))
@@ -135,6 +137,17 @@ class SwiftTransferServer(
                 method == "GET" && path == "/api/info" -> {
                     serveApiInfo(output)
                 }
+                method == "GET" && path == "/api/files" -> {
+                    val jsonArray = sharedFiles.joinToString(separator = ",", prefix = "[", postfix = "]") { file ->
+                        """{"id":"${file.id}","name":"${escapeHtml(file.name)}","size":${file.size},"mime":"${file.mimeType}"}"""
+                    }
+                    sendHttpResponse(output, 200, "OK", "application/json", jsonArray.toByteArray(Charsets.UTF_8))
+                }
+                method == "POST" && path.startsWith("/api/request_files") -> {
+                    val targetPort = extractQueryParam(queryString, "port")?.toIntOrNull() ?: 8888
+                    onRequestTransferFromPeer?.invoke(clientIp, targetPort)
+                    sendHttpResponse(output, 200, "OK", "application/json", """{"status":"transfer_started"}""".toByteArray())
+                }
                 method == "GET" && path.startsWith("/api/download") -> {
                     val id = extractQueryParam(queryString, "id")
                     val fileItem = sharedFiles.find { it.id == id }
@@ -154,6 +167,7 @@ class SwiftTransferServer(
                     }
                     val mimeType = headers["content-type"] ?: "application/octet-stream"
 
+                    onTransferStarted(fileName, contentLength)
                     handleIncomingUpload(input, contentLength, fileName, mimeType, output)
                 }
                 else -> {
@@ -193,203 +207,49 @@ class SwiftTransferServer(
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>SwiftShare Web Portal</title>
+                <title>SHAREit Web Share</title>
                 <style>
-                    :root {
-                        --bg: #0B0F19;
-                        --card: #161F30;
-                        --primary: #00D2FF;
-                        --accent: #7928CA;
-                        --text: #F3F4F6;
-                        --muted: #9CA3AF;
-                    }
-                    body {
-                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-                        background: var(--bg);
-                        color: var(--text);
-                        margin: 0;
-                        padding: 16px;
-                    }
-                    .container {
-                        max-width: 640px;
-                        margin: 0 auto;
-                    }
-                    .header {
-                        text-align: center;
-                        padding: 24px 0 16px;
-                    }
-                    .logo {
-                        font-size: 28px;
-                        font-weight: 800;
-                        background: linear-gradient(135deg, var(--primary), var(--accent));
-                        -webkit-background-clip: text;
-                        -webkit-text-fill-color: transparent;
-                    }
-                    .badge {
-                        display: inline-block;
-                        padding: 4px 12px;
-                        border-radius: 999px;
-                        background: rgba(0, 210, 255, 0.15);
-                        color: var(--primary);
-                        font-size: 13px;
-                        margin-top: 6px;
-                        font-weight: 600;
-                    }
-                    .card {
-                        background: var(--card);
-                        border-radius: 16px;
-                        padding: 20px;
-                        margin-bottom: 20px;
-                        box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-                        border: 1px solid rgba(255,255,255,0.06);
-                    }
-                    h2 {
-                        margin-top: 0;
-                        font-size: 18px;
-                        font-weight: 700;
-                        color: #FFFFFF;
-                        display: flex;
-                        align-items: center;
-                        gap: 8px;
-                    }
-                    .file-item {
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                        padding: 12px;
-                        background: rgba(255,255,255,0.03);
-                        border-radius: 10px;
-                        margin-bottom: 8px;
-                    }
-                    .file-info {
-                        display: flex;
-                        flex-direction: column;
-                        overflow: hidden;
-                        padding-right: 12px;
-                    }
-                    .file-name {
-                        font-weight: 600;
-                        font-size: 15px;
-                        white-space: nowrap;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                    }
-                    .file-meta {
-                        color: var(--muted);
-                        font-size: 12px;
-                        margin-top: 2px;
-                    }
-                    .btn-download {
-                        background: linear-gradient(135deg, #00D2FF, #0082FB);
-                        color: #000;
-                        font-weight: 700;
-                        text-decoration: none;
-                        padding: 8px 16px;
-                        border-radius: 8px;
-                        font-size: 14px;
-                        white-space: nowrap;
-                    }
-                    .upload-box {
-                        border: 2px dashed rgba(0, 210, 255, 0.4);
-                        border-radius: 12px;
-                        padding: 24px;
-                        text-align: center;
-                        cursor: pointer;
-                        background: rgba(0, 210, 255, 0.03);
-                    }
-                    .upload-box input {
-                        display: none;
-                    }
-                    .upload-box label {
-                        cursor: pointer;
-                        font-weight: 600;
-                        color: var(--primary);
-                    }
-                    .progress-bar {
-                        height: 8px;
-                        width: 100%;
-                        background: rgba(255,255,255,0.1);
-                        border-radius: 4px;
-                        margin-top: 12px;
-                        overflow: hidden;
-                        display: none;
-                    }
-                    .progress-fill {
-                        height: 100%;
-                        width: 0%;
-                        background: linear-gradient(90deg, var(--primary), var(--accent));
-                        transition: width 0.2s;
-                    }
-                    .empty {
-                        color: var(--muted);
-                        text-align: center;
-                        padding: 24px 0;
-                        font-size: 14px;
-                    }
+                    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #F5F7FB; color: #1E293B; margin: 0; padding: 16px; }
+                    .container { max-width: 600px; margin: 0 auto; }
+                    .header { text-align: center; padding: 20px 0; }
+                    .logo { font-size: 26px; font-weight: 900; color: #1867FF; }
+                    .card { background: white; border-radius: 16px; padding: 18px; margin-bottom: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
+                    .file-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #F1F5F9; }
+                    .file-name { font-weight: 600; font-size: 14px; }
+                    .btn-download { background: #1867FF; color: white; text-decoration: none; padding: 8px 16px; border-radius: 8px; font-weight: bold; font-size: 13px; }
+                    .upload-box { border: 2px dashed #1867FF; border-radius: 12px; padding: 24px; text-align: center; cursor: pointer; background: #F0F6FF; }
                 </style>
             </head>
             <body>
                 <div class="container">
                     <div class="header">
-                        <div class="logo">⚡ SwiftShare</div>
-                        <div class="badge">Direct Web Share Portal</div>
+                        <div class="logo">⚡ SHAREit Portal</div>
+                        <p style="color:#64748B; font-size: 13px;">Direct Wi-Fi / Hotspot File Transfer</p>
                     </div>
-
                     <div class="card">
-                        <h2>📥 Files to Download (${sharedFiles.size})</h2>
+                        <h3>Files Ready to Download</h3>
                         $filesHtml
                     </div>
-
                     <div class="card">
-                        <h2>📤 Upload Files to Android Device</h2>
-                        <div class="upload-box" onclick="document.getElementById('fileInput').click()">
-                            <input type="file" id="fileInput" multiple onchange="uploadSelectedFiles(this.files)">
-                            <label>Click or Drop files here to send to device</label>
-                            <p style="margin: 4px 0 0; font-size: 12px; color: var(--muted)">Direct peer-to-peer transmission</p>
+                        <h3>Send Files to Device</h3>
+                        <div class="upload-box" onclick="document.getElementById('f').click()">
+                            <input type="file" id="f" multiple onchange="upload(this.files)" style="display:none">
+                            <span style="color:#1867FF; font-weight:bold;">Click here to select files to send</span>
                         </div>
-                        <div class="progress-bar" id="progressBar">
-                            <div class="progress-fill" id="progressFill"></div>
-                        </div>
-                        <div id="uploadStatus" style="font-size: 13px; color: var(--muted); margin-top: 8px; text-align: center;"></div>
+                        <div id="st" style="margin-top:10px; font-size:13px; text-align:center;"></div>
                     </div>
                 </div>
-
                 <script>
-                    function uploadSelectedFiles(files) {
-                        if (!files || files.length === 0) return;
-                        var pBar = document.getElementById('progressBar');
-                        var pFill = document.getElementById('progressFill');
-                        var status = document.getElementById('uploadStatus');
-                        pBar.style.display = 'block';
-
+                    function upload(files) {
+                        if (!files || !files.length) return;
                         var file = files[0];
-                        status.textContent = 'Uploading ' + file.name + ' (' + (file.size / (1024*1024)).toFixed(1) + ' MB)...';
-
+                        document.getElementById('st').textContent = 'Uploading ' + file.name + '...';
                         var xhr = new XMLHttpRequest();
                         xhr.open('POST', '/api/upload?filename=' + encodeURIComponent(file.name), true);
                         xhr.setRequestHeader('x-filename', encodeURIComponent(file.name));
-                        xhr.setRequestHeader('content-type', file.type || 'application/octet-stream');
-
-                        xhr.upload.onprogress = function(e) {
-                            if (e.lengthComputable) {
-                                var percent = Math.round((e.loaded / e.total) * 100);
-                                pFill.style.width = percent + '%';
-                                status.textContent = 'Uploading: ' + percent + '%';
-                            }
-                        };
-
                         xhr.onload = function() {
-                            if (xhr.status === 200) {
-                                status.textContent = '✅ Transfer complete! Sent to SwiftShare.';
-                                pFill.style.width = '100%';
-                            } else {
-                                status.textContent = '❌ Upload failed with status ' + xhr.status;
-                            }
+                            document.getElementById('st').textContent = xhr.status === 200 ? '✅ Successfully transferred to device!' : '❌ Failed';
                         };
-                        xhr.onerror = function() {
-                            status.textContent = '❌ Upload failed (network error)';
-                        };
-
                         xhr.send(file);
                     }
                 </script>
@@ -401,23 +261,8 @@ class SwiftTransferServer(
     }
 
     private fun serveApiInfo(output: OutputStream) {
-        val jsonBuilder = StringBuilder()
-        jsonBuilder.append("{")
-        jsonBuilder.append("\"appName\":\"SwiftShare\",")
-        jsonBuilder.append("\"files\":[")
-        sharedFiles.forEachIndexed { index, item ->
-            jsonBuilder.append("{")
-            jsonBuilder.append("\"id\":\"${item.id}\",")
-            jsonBuilder.append("\"name\":\"${escapeJson(item.name)}\",")
-            jsonBuilder.append("\"size\":${item.size},")
-            jsonBuilder.append("\"mimeType\":\"${escapeJson(item.mimeType)}\",")
-            jsonBuilder.append("\"category\":\"${item.category.name}\"")
-            jsonBuilder.append("}")
-            if (index < sharedFiles.size - 1) jsonBuilder.append(",")
-        }
-        jsonBuilder.append("]}")
-
-        sendHttpResponse(output, 200, "OK", "application/json", jsonBuilder.toString().toByteArray(Charsets.UTF_8))
+        val json = """{"appName":"SHAREit","device":"Android","filesCount":${sharedFiles.size}}"""
+        sendHttpResponse(output, 200, "OK", "application/json", json.toByteArray(Charsets.UTF_8))
     }
 
     private fun streamFileToClient(fileItem: ShareFileItem, output: OutputStream) {
@@ -432,7 +277,7 @@ class SwiftTransferServer(
             }
 
             if (inputStream == null) {
-                sendHttpResponse(output, 404, "Not Found", "text/plain", "Cannot open stream".toByteArray())
+                sendHttpResponse(output, 404, "Not Found", "text/plain", "Cannot open file".toByteArray())
                 return
             }
 
@@ -460,7 +305,7 @@ class SwiftTransferServer(
 
                 val now = System.currentTimeMillis()
                 val delta = now - lastTime
-                if (delta >= 400) {
+                if (delta >= 300) {
                     speed = (bytesSinceLastSample * 1000) / delta
                     lastTime = now
                     bytesSinceLastSample = 0L
@@ -485,7 +330,7 @@ class SwiftTransferServer(
         mimeType: String,
         output: OutputStream
     ) {
-        val destDir = File(context.filesDir, "received").apply { mkdirs() }
+        val destDir = com.example.data.FileManagerRepository.getReceivedFilesDir(context)
         val targetFile = File(destDir, fileName)
 
         var totalRead = 0L
@@ -514,7 +359,7 @@ class SwiftTransferServer(
 
                 val now = System.currentTimeMillis()
                 val delta = now - lastTime
-                if (delta >= 400) {
+                if (delta >= 300) {
                     speed = (bytesSinceLastSample * 1000) / delta
                     lastTime = now
                     bytesSinceLastSample = 0L
@@ -566,16 +411,6 @@ class SwiftTransferServer(
     }
 
     private fun escapeHtml(text: String): String {
-        return text.replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-            .replace("\"", "&quot;")
-    }
-
-    private fun escapeJson(text: String): String {
-        return text.replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     }
 }

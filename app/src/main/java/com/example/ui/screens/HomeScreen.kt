@@ -20,22 +20,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
-import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.NearMe
-import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.WifiTethering
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -55,21 +49,17 @@ import com.example.model.FileCategory
 import com.example.model.ShareFileItem
 import com.example.ui.AppScreen
 import com.example.ui.UiState
-import com.example.ui.theme.BgLight
-import com.example.ui.theme.BorderLight
-import com.example.ui.theme.CardWhite
-import com.example.ui.theme.CategoryAppGreen
-import com.example.ui.theme.CategoryDocBlue
-import com.example.ui.theme.CategoryMoreGrey
-import com.example.ui.theme.CategoryMusicOrange
-import com.example.ui.theme.CategoryPhotoPink
-import com.example.ui.theme.CategoryVideoPurple
-import com.example.ui.theme.ShareItBlue
-import com.example.ui.theme.ShareItBlueDark
-import com.example.ui.theme.ShareItGreen
-import com.example.ui.theme.TextMuted
-import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
+import com.example.ui.components.GlassCard
+import com.example.ui.components.LiquidAuroraBackground
+import com.example.ui.theme.CatDocBlue
+import com.example.ui.theme.CatMusicOrange
+import com.example.ui.theme.CatPhotoPink
+import com.example.ui.theme.CatVideoPurple
+import com.example.ui.theme.ElectricPillBlue
+import com.example.ui.theme.ElectricPillCyan
+import com.example.ui.theme.GlassTextMuted
+import com.example.ui.theme.GlassTextPrimary
+import com.example.ui.theme.GlassTextSecondary
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -82,456 +72,435 @@ fun HomeScreen(
     onOpenFile: (ShareFileItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    LazyColumn(
-        modifier = modifier
-            .testTag("home_screen")
-            .fillMaxSize()
-            .background(BgLight),
-        contentPadding = PaddingValues(bottom = 80.dp)
+    LiquidAuroraBackground(
+        modifier = modifier.testTag("home_screen"),
+        isHeroDeepBlue = true
     ) {
-        // Royal Blue Top Header Section
-        item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(ShareItBlue, ShareItBlueDark)
-                        )
-                    )
-                    .padding(horizontal = 20.dp, vertical = 16.dp)
-            ) {
-                Column {
-                    // Top App Bar
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.White.copy(alpha = 0.2f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.WifiTethering,
-                                    contentDescription = "Logo",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(top = 16.dp, bottom = 85.dp)
+        ) {
+            // Top App Bar
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.25f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.WifiTethering,
+                                contentDescription = "Logo",
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
                             Text(
                                 text = "SHAREit",
                                 style = MaterialTheme.typography.titleLarge.copy(
                                     fontWeight = FontWeight.Black,
-                                    fontSize = 22.sp,
+                                    fontSize = 20.sp,
                                     color = Color.White
                                 )
                             )
-                        }
-
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(
-                                onClick = { onNavigate(AppScreen.SETTINGS) },
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Star,
-                                    contentDescription = "VIP",
-                                    tint = Color(0xFFFFD700),
-                                    modifier = Modifier.size(22.dp)
+                            Text(
+                                text = "Fast • Safe • Share",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = Color.White.copy(alpha = 0.8f),
+                                    fontSize = 10.sp
                                 )
-                            }
-                            IconButton(
-                                onClick = { onNavigate(AppScreen.RECEIVE_FILES) },
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.QrCodeScanner,
-                                    contentDescription = "Scan QR",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
+                            )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.2f))
+                                .clickable { onNavigate(AppScreen.SETTINGS) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = "VIP",
+                                tint = Color(0xFFFFD700),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.NotificationsNone,
+                                contentDescription = "Notifications",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
 
-                    // Title & Description
+                Spacer(modifier = Modifier.height(22.dp))
+            }
+
+            // Hero Title & Description
+            item {
+                Column(modifier = Modifier.padding(horizontal = 20.dp)) {
                     Text(
-                        text = "Fast File Transfer",
+                        text = "Connect\nShare Everything",
                         style = MaterialTheme.typography.headlineMedium.copy(
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.ExtraBold,
                             color = Color.White,
-                            fontSize = 24.sp
+                            fontSize = 28.sp,
+                            lineHeight = 32.sp
                         )
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "Share files, photos, videos, apps and more with ease and speed.",
+                        text = "Transfer files, photos, videos, apps\nand more — anytime, anywhere.",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             color = Color.White.copy(alpha = 0.85f),
-                            fontSize = 13.sp
+                            fontSize = 12.sp,
+                            lineHeight = 16.sp
                         )
                     )
+                }
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(20.dp))
+            }
 
-                    // Big Send & Receive Action Buttons
-                    // SEND Button
-                    ActionCardItem(
+            // Dual Liquid Glass Action Cards (Send & Receive)
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    GlassActionCard(
                         title = "Send",
                         subtitle = "Send files to nearby devices",
-                        icon = Icons.Default.NearMe,
-                        backgroundColor = Color(0xFF0D6EFD),
+                        icon = Icons.Default.ArrowUpward,
+                        iconGradient = listOf(ElectricPillBlue, ElectricPillCyan),
                         testTag = "btn_home_send",
+                        modifier = Modifier.weight(1f),
                         onClick = { onNavigate(AppScreen.SEND_SEARCH) }
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // RECEIVE Button
-                    ActionCardItem(
+                    GlassActionCard(
                         title = "Receive",
                         subtitle = "Receive files from nearby devices",
                         icon = Icons.Default.ArrowDownward,
-                        backgroundColor = ShareItGreen,
+                        iconGradient = listOf(ElectricPillCyan, Color(0xFF0077B6)),
                         testTag = "btn_home_receive",
+                        modifier = Modifier.weight(1f),
                         onClick = { onNavigate(AppScreen.RECEIVE_FILES) }
                     )
                 }
-            }
-        }
 
-        // 6 Category Grid Card
-        item {
-            Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    color = CardWhite,
-                    shadowElevation = 2.dp,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, BorderLight)
-                ) {
-                    Column(modifier = Modifier.padding(vertical = 16.dp, horizontal = 10.dp)) {
+                Spacer(modifier = Modifier.height(18.dp))
+            }
+
+            // 4-Category Frosted Glass Card (Photos, Videos, Music, Documents)
+            item {
+                Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    GlassCard(modifier = Modifier.fillMaxWidth()) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp, horizontal = 8.dp),
                             horizontalArrangement = Arrangement.SpaceAround
                         ) {
-                            CategoryIcon(
+                            GlassCategoryItem(
                                 label = "Photos",
+                                countText = String.format("%,d", uiState.photoCount),
                                 icon = Icons.Default.Image,
-                                color = CategoryPhotoPink,
-                                testTag = "cat_photos",
+                                color = CatPhotoPink,
                                 onClick = {
                                     onSelectCategory(FileCategory.PHOTOS)
                                     onNavigate(AppScreen.SELECT_FILES)
                                 }
                             )
-                            CategoryIcon(
+                            GlassCategoryItem(
                                 label = "Videos",
+                                countText = String.format("%,d", uiState.videoCount),
                                 icon = Icons.Default.Videocam,
-                                color = CategoryVideoPurple,
-                                testTag = "cat_videos",
+                                color = CatVideoPurple,
                                 onClick = {
                                     onSelectCategory(FileCategory.VIDEOS)
                                     onNavigate(AppScreen.SELECT_FILES)
                                 }
                             )
-                            CategoryIcon(
+                            GlassCategoryItem(
                                 label = "Music",
+                                countText = String.format("%,d", uiState.musicCount),
                                 icon = Icons.Default.MusicNote,
-                                color = CategoryMusicOrange,
-                                testTag = "cat_music",
+                                color = CatMusicOrange,
                                 onClick = {
                                     onSelectCategory(FileCategory.MUSIC)
                                     onNavigate(AppScreen.SELECT_FILES)
                                 }
                             )
-                        }
-
-                        Spacer(modifier = Modifier.height(18.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceAround
-                        ) {
-                            CategoryIcon(
+                            GlassCategoryItem(
                                 label = "Documents",
+                                countText = String.format("%,d", uiState.docCount),
                                 icon = Icons.Default.Description,
-                                color = CategoryDocBlue,
-                                testTag = "cat_docs",
+                                color = CatDocBlue,
                                 onClick = {
                                     onSelectCategory(FileCategory.DOCS)
-                                    onNavigate(AppScreen.SELECT_FILES)
-                                }
-                            )
-                            CategoryIcon(
-                                label = "Apps",
-                                icon = Icons.Default.Android,
-                                color = CategoryAppGreen,
-                                testTag = "cat_apps",
-                                onClick = {
-                                    onSelectCategory(FileCategory.APPS)
-                                    onNavigate(AppScreen.SELECT_FILES)
-                                }
-                            )
-                            CategoryIcon(
-                                label = "More",
-                                icon = Icons.Default.GridView,
-                                color = CategoryMoreGrey,
-                                testTag = "cat_more",
-                                onClick = {
-                                    onSelectCategory(FileCategory.ALL)
                                     onNavigate(AppScreen.SELECT_FILES)
                                 }
                             )
                         }
                     }
                 }
-            }
-        }
 
-        // Recent Section
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Recent",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-                )
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .testTag("btn_view_all_recent")
-                        .clickable { onNavigate(AppScreen.HISTORY) }
-                ) {
-                    Text(
-                        text = "View all",
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            color = TextSecondary,
-                            fontWeight = FontWeight.Medium
-                        )
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
-                        contentDescription = "View all",
-                        tint = TextSecondary,
-                        modifier = Modifier.size(12.dp)
-                    )
-                }
+                Spacer(modifier = Modifier.height(20.dp))
             }
-        }
 
-        val displayRecent = uiState.receivedFiles.ifEmpty { uiState.availableFiles.take(3) }
-        if (displayRecent.isEmpty()) {
+            // Recent Section
             item {
-                Surface(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    color = CardWhite,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, BorderLight)
+                        .padding(horizontal = 22.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "No recent files transferred. Tap 'Send' to transfer files.",
-                        style = MaterialTheme.typography.bodySmall.copy(color = TextMuted),
-                        modifier = Modifier.padding(18.dp)
+                        text = "Recent",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = GlassTextPrimary
+                        )
                     )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .testTag("btn_view_all_recent")
+                            .clickable { onNavigate(AppScreen.HISTORY) }
+                    ) {
+                        Text(
+                            text = "View all",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = GlassTextSecondary,
+                                fontWeight = FontWeight.Medium
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                            contentDescription = "View all",
+                            tint = GlassTextSecondary,
+                            modifier = Modifier.size(12.dp)
+                        )
+                    }
                 }
             }
-        } else {
-            items(displayRecent.take(4), key = { it.id }) { file ->
-                RecentFileRow(
-                    file = file,
-                    onClick = { onOpenFile(file) }
-                )
+
+            val displayRecent = uiState.receivedFiles.ifEmpty { uiState.availableFiles.take(3) }
+            if (displayRecent.isEmpty()) {
+                item {
+                    Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                        GlassCard(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                text = "No recent files transferred. Tap Send to transfer files.",
+                                style = MaterialTheme.typography.bodySmall.copy(color = GlassTextMuted),
+                                modifier = Modifier.padding(18.dp)
+                            )
+                        }
+                    }
+                }
+            } else {
+                items(displayRecent.take(4), key = { it.id }) { file ->
+                    Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                        GlassCard(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onOpenFile(file) }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(44.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(CatPhotoPink.copy(alpha = 0.15f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Image,
+                                            contentDescription = "File",
+                                            tint = CatPhotoPink,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.width(12.dp))
+
+                                    Column {
+                                        Text(
+                                            text = file.name,
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = GlassTextPrimary
+                                            ),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        val dateFormatted = SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(file.dateModified))
+                                        Text(
+                                            text = "${file.formattedSize} • $dateFormatted",
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                color = GlassTextSecondary,
+                                                fontSize = 12.sp
+                                            )
+                                        )
+                                    }
+                                }
+
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                                    contentDescription = "Open",
+                                    tint = GlassTextMuted,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun ActionCardItem(
+private fun GlassActionCard(
     title: String,
     subtitle: String,
     icon: ImageVector,
-    backgroundColor: Color,
+    iconGradient: List<Color>,
     testTag: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Surface(
-        modifier = Modifier
+    GlassCard(
+        modifier = modifier
             .testTag(testTag)
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick),
-        color = backgroundColor,
-        shadowElevation = 3.dp
+            .clickable(onClick = onClick)
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
                 modifier = Modifier
-                    .size(46.dp)
+                    .size(52.dp)
                     .clip(CircleShape)
-                    .background(Color.White),
+                    .background(Brush.linearGradient(iconGradient)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = title,
-                    tint = backgroundColor,
-                    modifier = Modifier.size(24.dp)
+                    tint = Color.White,
+                    modifier = Modifier.size(26.dp)
                 )
             }
-            Spacer(modifier = Modifier.width(16.dp))
-            Column {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        fontSize = 18.sp
-                    )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = GlassTextPrimary,
+                    fontSize = 16.sp
                 )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        color = Color.White.copy(alpha = 0.85f),
-                        fontSize = 12.sp
-                    )
-                )
-            }
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    color = GlassTextSecondary,
+                    fontSize = 10.sp,
+                    lineHeight = 13.sp
+                ),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
 
 @Composable
-private fun CategoryIcon(
+private fun GlassCategoryItem(
     label: String,
+    countText: String,
     icon: ImageVector,
     color: Color,
-    testTag: String,
     onClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
-            .testTag(testTag)
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 4.dp),
+            .padding(horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
             modifier = Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(color),
+                .size(42.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(color.copy(alpha = 0.15f)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = label,
-                tint = Color.White,
-                modifier = Modifier.size(24.dp)
+                tint = color,
+                modifier = Modifier.size(22.dp)
             )
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = label,
-            style = MaterialTheme.typography.labelMedium.copy(
-                fontWeight = FontWeight.Medium,
-                color = TextPrimary,
-                fontSize = 12.sp
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontWeight = FontWeight.Bold,
+                color = GlassTextPrimary,
+                fontSize = 11.sp
             )
         )
-    }
-}
-
-@Composable
-private fun RecentFileRow(
-    file: ShareFileItem,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick),
-        color = CardWhite,
-        border = androidx.compose.foundation.BorderStroke(1.dp, BorderLight)
-    ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(CategoryPhotoPink.copy(alpha = 0.15f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Image,
-                        contentDescription = "File",
-                        tint = CategoryPhotoPink,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                Column {
-                    Text(
-                        text = file.name,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontWeight = FontWeight.SemiBold,
-                            color = TextPrimary
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    val dateFormatted = SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(file.dateModified))
-                    Text(
-                        text = "${file.formattedSize} • $dateFormatted",
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            color = TextSecondary,
-                            fontSize = 12.sp
-                        )
-                    )
-                }
-            }
-
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
-                contentDescription = "Open",
-                tint = TextMuted,
-                modifier = Modifier.size(14.dp)
+        Text(
+            text = countText,
+            style = MaterialTheme.typography.labelSmall.copy(
+                color = GlassTextSecondary,
+                fontSize = 10.sp
             )
-        }
+        )
     }
 }

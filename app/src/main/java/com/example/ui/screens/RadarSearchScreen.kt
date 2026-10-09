@@ -29,21 +29,26 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.NearMe
-import androidx.compose.material.icons.filled.QrCode
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.WifiTethering
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -55,6 +60,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -65,20 +71,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.FileCategory
 import com.example.model.PeerDevice
-import com.example.ui.AppScreen
 import com.example.ui.UiState
-import com.example.ui.theme.BgLight
-import com.example.ui.theme.BorderLight
-import com.example.ui.theme.CardWhite
-import com.example.ui.theme.CategoryDocBlue
-import com.example.ui.theme.CategoryMusicOrange
-import com.example.ui.theme.CategoryPhotoPink
-import com.example.ui.theme.CategoryVideoPurple
-import com.example.ui.theme.ShareItBlue
-import com.example.ui.theme.ShareItBlueLight
-import com.example.ui.theme.TextMuted
-import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
+import com.example.ui.components.GlassCard
+import com.example.ui.components.LiquidAuroraBackground
+import com.example.ui.theme.CatAppGreen
+import com.example.ui.theme.CatDocBlue
+import com.example.ui.theme.CatMusicOrange
+import com.example.ui.theme.CatPhotoPink
+import com.example.ui.theme.CatVideoPurple
+import com.example.ui.theme.ElectricPillBlue
+import com.example.ui.theme.ElectricPillCyan
+import com.example.ui.theme.EmeraldPillGreen
+import com.example.ui.theme.GlassTextMuted
+import com.example.ui.theme.GlassTextPrimary
+import com.example.ui.theme.GlassTextSecondary
 
 @Composable
 fun RadarSearchScreen(
@@ -88,39 +94,36 @@ fun RadarSearchScreen(
     onNavigateToReceiveQr: () -> Unit,
     onSendToPeer: (PeerDevice) -> Unit,
     onConnectManualIp: (String) -> Unit,
+    onOpenHotspotSettings: () -> Unit,
+    onOpenWifiSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     BackHandler { onBack() }
 
     var showManualIpDialog by remember { mutableStateOf(false) }
-    var manualIpText by remember { mutableStateOf("") }
+    var manualIpText by remember { mutableStateOf("192.168.43.1") }
 
-    val transition = rememberInfiniteTransition(label = "BlueRadar")
+    val transition = rememberInfiniteTransition(label = "LiquidGlassRadar")
     val wave1 by transition.animateFloat(
         initialValue = 0.3f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(2200, easing = FastOutSlowInEasing),
+            animation = tween(2400, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Restart
         ),
-        label = "Wave1"
+        label = "LiquidWave1"
     )
     val wave2 by transition.animateFloat(
         initialValue = 0.3f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(2200, delayMillis = 700, easing = FastOutSlowInEasing),
+            animation = tween(2400, delayMillis = 800, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Restart
         ),
-        label = "Wave2"
+        label = "LiquidWave2"
     )
 
-    Box(
-        modifier = modifier
-            .testTag("radar_search_screen")
-            .fillMaxSize()
-            .background(BgLight)
-    ) {
+    LiquidAuroraBackground(modifier = modifier.testTag("radar_search_screen")) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
@@ -130,54 +133,156 @@ fun RadarSearchScreen(
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier.testTag("btn_back_radar")
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = TextPrimary
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = onBack,
+                            modifier = Modifier.testTag("btn_back_radar")
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = GlassTextPrimary
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Send Files",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = GlassTextPrimary
+                            )
                         )
                     }
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Send Files",
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                    )
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        IconButton(onClick = onNavigateToReceiveQr) {
+                            Icon(
+                                imageVector = Icons.Default.QrCodeScanner,
+                                contentDescription = "Scan QR",
+                                tint = GlassTextPrimary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        IconButton(onClick = onOpenWifiSettings) {
+                            Icon(
+                                imageVector = Icons.Default.Wifi,
+                                contentDescription = "Wi-Fi Settings",
+                                tint = GlassTextPrimary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
             }
 
-            // Blue Concentric Radar Circle Animation
+            // Selected Files Indicator Card
+            item {
+                GlassCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onNavigateToSelect(uiState.selectedCategory) }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(ElectricPillBlue.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Folder,
+                                    contentDescription = "Selected Files",
+                                    tint = ElectricPillBlue,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                if (uiState.selectedFiles.isNotEmpty()) {
+                                    Text(
+                                        text = "${uiState.selectedFiles.size} files selected (${uiState.formattedSelectedBytes})",
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = GlassTextPrimary
+                                        )
+                                    )
+                                    Text(
+                                        text = "Tap to view or add more files",
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            color = ElectricPillBlue,
+                                            fontSize = 11.sp
+                                        )
+                                    )
+                                } else {
+                                    Text(
+                                        text = "No files selected yet",
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = GlassTextPrimary
+                                        )
+                                    )
+                                    Text(
+                                        text = "Tap to pick Apps, Photos, Videos, or Docs",
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            color = GlassTextSecondary,
+                                            fontSize = 11.sp
+                                        )
+                                    )
+                                }
+                            }
+                        }
+
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                            contentDescription = "Select",
+                            tint = GlassTextMuted,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+
+            // Liquid Glass Ripple Radar Animation
             item {
                 Box(
                     modifier = Modifier
-                        .size(220.dp)
-                        .padding(10.dp),
+                        .size(210.dp)
+                        .padding(8.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Canvas(modifier = Modifier.fillMaxSize()) {
                         val center = Offset(size.width / 2f, size.height / 2f)
                         val maxRadius = size.width / 2f
 
-                        // Static soft blue rings
-                        drawCircle(color = ShareItBlueLight, radius = maxRadius * 0.95f, center = center)
-                        drawCircle(color = Color(0xFFD6E6FF), radius = maxRadius * 0.72f, center = center)
-                        drawCircle(color = Color(0xFFBED8FF), radius = maxRadius * 0.50f, center = center)
+                        // Liquid glass ripple rings
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(Color.White.copy(alpha = 0.5f), Color(0x3300C6FF), Color.Transparent),
+                                center = center,
+                                radius = maxRadius
+                            ),
+                            radius = maxRadius * 0.95f,
+                            center = center
+                        )
 
-                        // Animated wave pulses
                         listOf(wave1, wave2).forEach { w ->
                             val r = maxRadius * w
                             val alpha = (1f - w) * 0.5f
                             drawCircle(
-                                color = ShareItBlue.copy(alpha = alpha),
+                                color = ElectricPillCyan.copy(alpha = alpha),
                                 radius = r,
                                 center = center,
                                 style = Stroke(width = 2.dp.toPx())
@@ -185,12 +290,16 @@ fun RadarSearchScreen(
                         }
                     }
 
-                    // Floating Dark Blue Center Circle with Paper Airplane
+                    // Floating Glowing Blue Sphere with Paper Airplane
                     Box(
                         modifier = Modifier
                             .size(68.dp)
                             .clip(CircleShape)
-                            .background(ShareItBlue),
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(ElectricPillBlue, ElectricPillCyan)
+                                )
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -202,7 +311,7 @@ fun RadarSearchScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
             }
 
             // Status Texts
@@ -211,293 +320,376 @@ fun RadarSearchScreen(
                     text = "Looking for nearby devices...",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
-                        color = TextPrimary,
+                        color = GlassTextPrimary,
                         fontSize = 17.sp
                     )
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Make sure the receiving device is open\nand in the same Wi-Fi network.",
+                    text = "Make sure receiver is in Receive mode on Wi-Fi or Hotspot.",
                     style = MaterialTheme.typography.bodySmall.copy(
-                        color = TextSecondary,
+                        color = GlassTextSecondary,
                         textAlign = TextAlign.Center,
-                        lineHeight = 18.sp
+                        lineHeight = 17.sp
                     )
                 )
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(16.dp))
             }
 
-            // 2x2 Category Summary Cards
+            // Discovered Receivers List
             item {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    CategorySummaryCard(
-                        title = "Photos",
-                        countText = "${uiState.photoCount} items",
-                        icon = Icons.Default.Image,
-                        color = CategoryPhotoPink,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onNavigateToSelect(FileCategory.PHOTOS) }
-                    )
-                    CategorySummaryCard(
-                        title = "Videos",
-                        countText = "${uiState.videoCount} items",
-                        icon = Icons.Default.Videocam,
-                        color = CategoryVideoPurple,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onNavigateToSelect(FileCategory.VIDEOS) }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    CategorySummaryCard(
-                        title = "Music",
-                        countText = "${uiState.musicCount} items",
-                        icon = Icons.Default.MusicNote,
-                        color = CategoryMusicOrange,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onNavigateToSelect(FileCategory.MUSIC) }
-                    )
-                    CategorySummaryCard(
-                        title = "Documents",
-                        countText = "${uiState.docCount} items",
-                        icon = Icons.Default.Description,
-                        color = CategoryDocBlue,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onNavigateToSelect(FileCategory.DOCS) }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-            }
-
-            // Discovered Peers List (if any detected on local network)
-            if (uiState.discoveredPeers.isNotEmpty()) {
-                item {
                     Text(
                         text = "Discovered Receivers (${uiState.discoveredPeers.size})",
                         style = MaterialTheme.typography.titleSmall.copy(
                             fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 8.dp)
+                            color = GlassTextPrimary
+                        )
                     )
+                    TextButton(onClick = { showManualIpDialog = true }) {
+                        Text(
+                            text = "Manual IP",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = ElectricPillBlue,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                    }
                 }
+            }
 
+            if (uiState.discoveredPeers.isEmpty()) {
+                item {
+                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Scanning network radar...",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = GlassTextPrimary
+                                    )
+                                )
+                                Text(
+                                    text = "Connect to receiver Hotspot or tap Direct Connect (192.168.43.1).",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        color = GlassTextSecondary,
+                                        fontSize = 11.sp
+                                    )
+                                )
+                            }
+                            Button(
+                                onClick = { onConnectManualIp("192.168.43.1") },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = ElectricPillBlue),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = "Beam 43.1",
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+            } else {
                 items(uiState.discoveredPeers, key = { it.id }) { peer ->
-                    Surface(
+                    GlassCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 4.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .clickable { onSendToPeer(peer) },
-                        color = CardWhite,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, ShareItBlueLight)
+                            .clickable { onSendToPeer(peer) }
                     ) {
                         Row(
                             modifier = Modifier.padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Column {
-                                Text(
-                                    text = peer.name,
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        color = TextPrimary
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(Brush.linearGradient(listOf(ElectricPillBlue, ElectricPillCyan))),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.PhoneAndroid,
+                                        contentDescription = "Device",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(22.dp)
                                     )
-                                )
-                                Text(
-                                    text = "${peer.ipAddress}:${peer.port}",
-                                    style = MaterialTheme.typography.bodySmall.copy(
-                                        color = TextSecondary,
-                                        fontSize = 12.sp
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = peer.name,
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = GlassTextPrimary
+                                        )
                                     )
-                                )
+                                    Text(
+                                        text = "${peer.ipAddress}:${peer.port} • Signal ${peer.signalStrength}%",
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            color = ElectricPillBlue,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    )
+                                }
                             }
+
                             Button(
                                 onClick = { onSendToPeer(peer) },
-                                colors = ButtonDefaults.buttonColors(containerColor = ShareItBlue),
-                                shape = RoundedCornerShape(10.dp)
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = ElectricPillBlue),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
                             ) {
-                                Text("Send", color = Color.White, fontWeight = FontWeight.Bold)
+                                Text(
+                                    text = "Send",
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                )
                             }
                         }
                     }
                 }
-
-                item { Spacer(modifier = Modifier.height(14.dp)) }
+                item {
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
             }
 
-            // "Don't see the device? Try connecting via QR code >" Card
+            // Hotspot Sharing Helper Card
             item {
-                Surface(
-                    modifier = Modifier
-                        .testTag("btn_qr_connect_option")
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .clickable { onNavigateToReceiveQr() },
-                    color = CardWhite,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, BorderLight)
-                ) {
+                GlassCard(modifier = Modifier.fillMaxWidth()) {
                     Row(
                         modifier = Modifier.padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.QrCode,
-                                contentDescription = "QR Code",
-                                tint = ShareItBlue,
-                                modifier = Modifier.size(24.dp)
-                            )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color(0xFFE0E7FF)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.WifiTethering,
+                                    contentDescription = "Hotspot",
+                                    tint = ElectricPillBlue,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "Don't see the device?",
+                                    text = "Hotspot Direct Beam",
                                     style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = TextPrimary
+                                        fontWeight = FontWeight.Bold,
+                                        color = GlassTextPrimary
                                     )
                                 )
                                 Text(
-                                    text = "Try connecting via QR code",
+                                    text = "Connect to Receiver's Hotspot or turn yours on",
                                     style = MaterialTheme.typography.bodySmall.copy(
-                                        color = TextSecondary,
-                                        fontSize = 12.sp
+                                        color = GlassTextSecondary,
+                                        fontSize = 11.sp
                                     )
                                 )
                             }
                         }
 
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
-                            contentDescription = "Next",
-                            tint = TextMuted,
-                            modifier = Modifier.size(14.dp)
-                        )
+                        OutlinedButton(
+                            onClick = onOpenHotspotSettings,
+                            shape = RoundedCornerShape(14.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "Settings",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = ElectricPillBlue
+                                )
+                            )
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+            }
 
-                // Direct IP option
-                Text(
-                    text = "Or connect via IP Address",
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        color = ShareItBlue,
-                        fontWeight = FontWeight.SemiBold
-                    ),
-                    modifier = Modifier
-                        .testTag("btn_direct_ip")
-                        .clickable { showManualIpDialog = true }
-                        .padding(8.dp)
-                )
+            // Quick Category Selectors
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    GlassCategorySummary(
+                        title = "Apps",
+                        count = "${uiState.appCount}",
+                        icon = Icons.Default.Android,
+                        color = CatAppGreen,
+                        modifier = Modifier.weight(1f),
+                        onClick = { onNavigateToSelect(FileCategory.APPS) }
+                    )
+                    GlassCategorySummary(
+                        title = "Photos",
+                        count = "${uiState.photoCount}",
+                        icon = Icons.Default.Image,
+                        color = CatPhotoPink,
+                        modifier = Modifier.weight(1f),
+                        onClick = { onNavigateToSelect(FileCategory.PHOTOS) }
+                    )
+                    GlassCategorySummary(
+                        title = "Videos",
+                        count = "${uiState.videoCount}",
+                        icon = Icons.Default.Videocam,
+                        color = CatVideoPurple,
+                        modifier = Modifier.weight(1f),
+                        onClick = { onNavigateToSelect(FileCategory.VIDEOS) }
+                    )
+                    GlassCategorySummary(
+                        title = "Docs",
+                        count = "${uiState.docCount}",
+                        icon = Icons.Default.Description,
+                        color = CatDocBlue,
+                        modifier = Modifier.weight(1f),
+                        onClick = { onNavigateToSelect(FileCategory.DOCS) }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
             }
         }
+    }
 
-        if (showManualIpDialog) {
-            AlertDialog(
-                onDismissRequest = { showManualIpDialog = false },
-                containerColor = CardWhite,
-                title = { Text("Direct Receiver IP", fontWeight = FontWeight.Bold, color = TextPrimary) },
-                text = {
-                    Column {
-                        Text("Enter the IP shown on receiver screen (e.g. 192.168.1.108:8888):", color = TextSecondary)
-                        Spacer(modifier = Modifier.height(10.dp))
-                        OutlinedTextField(
-                            value = manualIpText,
-                            onValueChange = { manualIpText = it },
-                            placeholder = { Text("192.168.1.100:8888") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            if (manualIpText.isNotBlank()) {
-                                showManualIpDialog = false
-                                onConnectManualIp(manualIpText)
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = ShareItBlue)
-                    ) {
-                        Text("Connect", color = Color.White)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showManualIpDialog = false }) {
-                        Text("Cancel", color = TextSecondary)
+    if (showManualIpDialog) {
+        AlertDialog(
+            onDismissRequest = { showManualIpDialog = false },
+            title = {
+                Text(
+                    text = "Direct IP Connection",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Enter the Receiver's IP address (default Android Hotspot gateway is 192.168.43.1):",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = GlassTextSecondary
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = manualIpText,
+                        onValueChange = { manualIpText = it },
+                        label = { Text("Receiver IP") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = { manualIpText = "192.168.43.1" }) {
+                            Text("192.168.43.1")
+                        }
+                        TextButton(onClick = { manualIpText = "127.0.0.1" }) {
+                            Text("127.0.0.1")
+                        }
                     }
                 }
-            )
-        }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (manualIpText.isNotBlank()) {
+                            showManualIpDialog = false
+                            onConnectManualIp(manualIpText.trim())
+                        }
+                    }
+                ) {
+                    Text("Connect & Send")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showManualIpDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 
 @Composable
-private fun CategorySummaryCard(
+private fun GlassCategorySummary(
     title: String,
-    countText: String,
+    count: String,
     icon: ImageVector,
     color: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick),
-        color = CardWhite,
-        border = androidx.compose.foundation.BorderStroke(1.dp, BorderLight)
+    GlassCard(
+        modifier = modifier.clickable(onClick = onClick)
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(36.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(color),
+                    .background(color.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = title,
-                    tint = Color.White,
-                    modifier = Modifier.size(22.dp)
+                    tint = color,
+                    modifier = Modifier.size(20.dp)
                 )
             }
-            Spacer(modifier = Modifier.width(10.dp))
-            Column {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = GlassTextPrimary,
+                    fontSize = 11.sp
                 )
-                Text(
-                    text = countText,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        color = TextSecondary,
-                        fontSize = 11.sp
-                    )
+            )
+            Text(
+                text = count,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    color = GlassTextSecondary,
+                    fontSize = 10.sp
                 )
-            }
+            )
         }
     }
 }

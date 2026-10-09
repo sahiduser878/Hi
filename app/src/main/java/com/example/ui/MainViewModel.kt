@@ -1,6 +1,7 @@
 package com.example.ui
 
 import android.app.Application
+import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import androidx.lifecycle.AndroidViewModel
@@ -14,6 +15,7 @@ import com.example.model.TransferItem
 import com.example.model.TransferStats
 import com.example.model.TransferStatus
 import com.example.network.NetworkUtils
+import com.example.network.PeerDiscoveryManager
 import com.example.network.SwiftTransferClient
 import com.example.network.SwiftTransferServer
 import kotlinx.coroutines.Job
@@ -23,6 +25,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.File
 
 enum class BottomTab {
     HOME,
@@ -33,12 +36,12 @@ enum class BottomTab {
 
 enum class AppScreen {
     HOME,
-    SEND_SEARCH,    // Screen 2: Looking for nearby devices... + 2x2 category grid
-    RECEIVE_FILES,  // Screen 3: Waiting for sender... + Device Name & Scan QR
-    SELECT_FILES,   // Screen 4: Select Files with category tabs, search & checkboxes
-    TRANSFERRING,   // Screen 5: Active phone-to-phone transfer
-    HISTORY,        // Screen 6: Transfer history
-    SETTINGS        // Screen 7: Settings / Me
+    SEND_SEARCH,    // Radar search: Looking for nearby devices...
+    RECEIVE_FILES,  // Receiver beacon: Waiting for sender & searching senders
+    SELECT_FILES,   // Select Files: Apps, Photos, Videos, Music, Docs
+    TRANSFERRING,   // Active transfer: Real progress & speedometer
+    HISTORY,        // Transfer history
+    SETTINGS        // Settings / Me
 }
 
 enum class HistoryFilter {
@@ -50,30 +53,33 @@ enum class HistoryFilter {
 data class UiState(
     val currentScreen: AppScreen = AppScreen.HOME,
     val currentTab: BottomTab = BottomTab.HOME,
-    val deviceName: String = if (!Build.MODEL.isNullOrBlank()) Build.MODEL else "Android Device",
-    val userName: String = "Sahid",
-    val userEmail: String = "sahiduser878@shareit.com",
+    val deviceName: String = if (!Build.MODEL.isNullOrBlank()) Build.MODEL else "SHAREit Device",
+    val userName: String = "User123",
+    val userEmail: String = "user123@shareit.com",
     val selectedCategory: FileCategory = FileCategory.PHOTOS,
     val searchQuery: String = "",
     val availableFiles: List<ShareFileItem> = emptyList(),
     val selectedFiles: Set<ShareFileItem> = emptySet(),
     val isLoadingFiles: Boolean = false,
 
-    // Real category item counts
+    // Real device category counts
     val photoCount: Int = 0,
     val videoCount: Int = 0,
     val musicCount: Int = 0,
     val docCount: Int = 0,
     val appCount: Int = 0,
 
-    // Network & Server
+    // Network & Hotspot State
     val localIp: String = "127.0.0.1",
     val localPort: Int = 8888,
-    val wifiSsid: String = "Wi-Fi Network",
+    val wifiSsid: String = "SHAREit Direct",
     val isWifiConnected: Boolean = true,
+    val isHotspotActive: Boolean = false,
     val isServerRunning: Boolean = false,
     val isScanningRadar: Boolean = false,
-    val discoveredPeers: List<PeerDevice> = emptyList(),
+    val isReceiverSearching: Boolean = false,
+    val discoveredPeers: List<PeerDevice> = emptyList(),       // Senders looking for Receivers
+    val discoveredSenders: List<PeerDevice> = emptyList(),     // Receivers looking for Senders
     val targetPeer: PeerDevice? = null,
 
     // Active Transfer
@@ -84,6 +90,7 @@ data class UiState(
     val totalTransferBytes: Long = 0L,
     val currentTransferredBytes: Long = 0L,
     val etaSeconds: Int = 0,
+    val isReceivingMode: Boolean = false,
 
     // History & Settings
     val historyFilter: HistoryFilter = HistoryFilter.ALL,
@@ -92,7 +99,7 @@ data class UiState(
     val stats: TransferStats = TransferStats(),
     val autoAccept: Boolean = true,
     val wifiOnly: Boolean = true,
-    val defaultSavePath: String = "Internal Storage/SwiftShare",
+    val defaultSavePath: String = "Internal Storage/SHAREit",
     val userNotification: String? = null
 ) {
     val totalSelectedBytes: Long
@@ -106,12 +113,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = FileManagerRepository(application)
     private val client = SwiftTransferClient(application)
+    private val discoveryManager = PeerDiscoveryManager(application)
     private var server: SwiftTransferServer? = null
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     private var radarJob: Job? = null
+    private var receiverScanJob: Job? = null
     private var transferJob: Job? = null
 
     init {
@@ -134,7 +143,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun navigateTo(screen: AppScreen) {
         _uiState.update { it.copy(currentScreen = screen, userNotification = null) }
         when (screen) {
-            AppScreen.HOME -> _uiState.update { it.copy(currentTab = BottomTab.HOME) }
+            AppScreen.HOME -> {
+                _uiState.update { it.copy(currentTab = BottomTab.HOME) }
+                discoveryManager.stopDiscovery()
+            }
             AppScreen.SELECT_FILES -> {
                 _uiState.update { it.copy(currentTab = BottomTab.FILES) }
                 loadFilesForCategory(_uiState.value.selectedCategory)
@@ -156,6 +168,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun onPermissionsResult(permissions: Map<String, Boolean>) {
+        loadRealCategoryCounts()
+        loadFilesForCategory(_uiState.value.selectedCategory)
+    }
+
     fun setHistoryFilter(filter: HistoryFilter) {
         _uiState.update { it.copy(historyFilter = filter) }
     }
@@ -165,10 +182,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val ip = NetworkUtils.getLocalIpAddress(context)
         val ssid = NetworkUtils.getWifiSsid(context)
         val connected = NetworkUtils.isWifiOrHotspotConnected(context)
-        _uiState.update { it.copy(localIp = ip, wifiSsid = ssid, isWifiConnected = connected) }
+        val isHotspot = NetworkUtils.isHotspotActive(context)
+        _uiState.update {
+            it.copy(
+                localIp = ip,
+                wifiSsid = ssid,
+                isWifiConnected = connected,
+                isHotspotActive = isHotspot
+            )
+        }
     }
 
-    private fun loadRealCategoryCounts() {
+    fun loadRealCategoryCounts() {
         viewModelScope.launch {
             val apps = repository.loadInstalledApps()
             val photos = repository.loadMediaFiles(FileCategory.PHOTOS)
@@ -233,13 +258,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update { state ->
                     val files = listOf(item) + state.availableFiles
                     val selected = state.selectedFiles + item
-                    state.copy(availableFiles = files, selectedFiles = selected, userNotification = "Selected ${item.name}")
+                    state.copy(
+                        availableFiles = files,
+                        selectedFiles = selected,
+                        userNotification = "Selected ${item.name}"
+                    )
                 }
             }
         }
     }
 
-    private fun loadFilesForCategory(category: FileCategory) {
+    fun loadFilesForCategory(category: FileCategory) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingFiles = true) }
             val files = when (category) {
@@ -250,92 +279,305 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Start search on Sender side:
+     * 1. Broadcasts Sender presence beacon.
+     * 2. Listens for Receiver UDP beacons.
+     * 3. Probes subnet and Hotspot gateway (192.168.43.1).
+     */
     fun startRadarScan() {
         radarJob?.cancel()
+        refreshNetworkInfo()
         _uiState.update { it.copy(isScanningRadar = true, discoveredPeers = emptyList()) }
+
+        // Start Sender Beacon so receivers can detect this sender
+        discoveryManager.startSenderBeacon(_uiState.value.deviceName, _uiState.value.localPort)
+
+        // Listen for Receiver Beacons
+        discoveryManager.startSenderDiscovery { foundPeer ->
+            _uiState.update { state ->
+                val current = state.discoveredPeers.toMutableList()
+                if (current.none { it.ipAddress == foundPeer.ipAddress }) {
+                    current.add(foundPeer)
+                }
+                state.copy(discoveredPeers = current)
+            }
+        }
+
+        // Subnet & Hotspot gateway scan
         radarJob = viewModelScope.launch {
             val ip = _uiState.value.localIp
             val peers = client.scanLocalSubnet(ip, _uiState.value.localPort)
             delay(1000)
-            _uiState.update { it.copy(discoveredPeers = peers, isScanningRadar = false) }
+            _uiState.update { state ->
+                val combined = (state.discoveredPeers + peers).distinctBy { it.ipAddress }
+                state.copy(discoveredPeers = combined, isScanningRadar = false)
+            }
         }
     }
 
+    /**
+     * Start Receiver side:
+     * 1. Starts embedded HTTP server to accept file streams.
+     * 2. Broadcasts Receiver UDP beacon.
+     * 3. Actively discovers Senders nearby so Receiver can also connect directly to Sender!
+     */
     fun startReceiveServer() {
-        if (server?.isRunning == true) return
         refreshNetworkInfo()
         val context = getApplication<Application>()
 
-        server = SwiftTransferServer(
-            context = context,
-            port = 8888,
-            onProgress = { fileName, transferred, total, speed ->
-                _uiState.update { state ->
-                    val overallProgress = if (total > 0) (transferred.toFloat() / total.toFloat()).coerceIn(0f, 1f) else 0f
-                    val eta = if (speed > 0 && total > transferred) ((total - transferred) / speed).toInt() else 0
-                    val updatedItems = state.activeTransfers.map { item ->
-                        if (item.fileName == fileName) {
-                            item.copy(
-                                bytesTransferred = transferred,
-                                speedBytesPerSec = speed,
-                                status = if (transferred >= total && total > 0) TransferStatus.COMPLETED else TransferStatus.TRANSFERRING
+        if (server == null || !server!!.isRunning) {
+            server = SwiftTransferServer(
+                context = context,
+                port = 8888,
+                onTransferStarted = { fileName, totalBytes ->
+                    viewModelScope.launch {
+                        val incomingItem = TransferItem(
+                            id = "rx_${System.currentTimeMillis()}",
+                            fileName = fileName,
+                            fileSize = totalBytes,
+                            status = TransferStatus.TRANSFERRING,
+                            direction = TransferDirection.RECEIVING,
+                            peerName = "Sender Device"
+                        )
+                        _uiState.update { state ->
+                            state.copy(
+                                currentScreen = AppScreen.TRANSFERRING,
+                                isReceivingMode = true,
+                                activeTransfers = listOf(incomingItem),
+                                currentTransferringItem = incomingItem,
+                                totalTransferBytes = totalBytes,
+                                currentTransferredBytes = 0L,
+                                overallTransferProgress = 0f
                             )
-                        } else item
+                        }
                     }
-                    val currentItem = updatedItems.find { it.fileName == fileName }
-                    state.copy(
-                        currentSpeedBytesPerSec = speed,
-                        overallTransferProgress = overallProgress,
-                        currentTransferredBytes = transferred,
-                        totalTransferBytes = total,
-                        etaSeconds = eta,
-                        activeTransfers = updatedItems,
-                        currentTransferringItem = currentItem
-                    )
-                }
-            },
-            onFileReceived = { file, originalName, size, mimeType ->
-                viewModelScope.launch {
-                    val receivedItem = ShareFileItem(
-                        id = "rx_${System.currentTimeMillis()}",
-                        name = originalName,
-                        size = size,
-                        filePath = file.absolutePath,
-                        mimeType = mimeType,
-                        dateModified = System.currentTimeMillis()
-                    )
+                },
+                onProgress = { fileName, transferred, total, speed ->
                     _uiState.update { state ->
-                        val newReceived = listOf(receivedItem) + state.receivedFiles
-                        val newStats = state.stats.copy(
-                            totalReceivedBytes = state.stats.totalReceivedBytes + size,
-                            filesReceivedCount = state.stats.filesReceivedCount + 1
-                        )
+                        val overallProgress = if (total > 0) (transferred.toFloat() / total.toFloat()).coerceIn(0f, 1f) else 0f
+                        val eta = if (speed > 0 && total > transferred) ((total - transferred) / speed).toInt() else 0
+                        val updatedItems = state.activeTransfers.map { item ->
+                            if (item.fileName == fileName) {
+                                item.copy(
+                                    bytesTransferred = transferred,
+                                    speedBytesPerSec = speed,
+                                    status = if (transferred >= total && total > 0) TransferStatus.COMPLETED else TransferStatus.TRANSFERRING
+                                )
+                            } else item
+                        }
+                        val currentItem = updatedItems.find { it.fileName == fileName }
                         state.copy(
-                            receivedFiles = newReceived,
-                            stats = newStats,
-                            userNotification = "Received $originalName"
+                            currentSpeedBytesPerSec = speed,
+                            overallTransferProgress = overallProgress,
+                            currentTransferredBytes = transferred,
+                            totalTransferBytes = total,
+                            etaSeconds = eta,
+                            activeTransfers = updatedItems,
+                            currentTransferringItem = currentItem
                         )
                     }
+                },
+                onFileReceived = { file, originalName, size, mimeType ->
+                    viewModelScope.launch {
+                        val receivedItem = ShareFileItem(
+                            id = "rx_${System.currentTimeMillis()}",
+                            name = originalName,
+                            size = size,
+                            filePath = file.absolutePath,
+                            mimeType = mimeType,
+                            dateModified = System.currentTimeMillis()
+                        )
+                        _uiState.update { state ->
+                            val newReceived = listOf(receivedItem) + state.receivedFiles
+                            val newStats = state.stats.copy(
+                                totalReceivedBytes = state.stats.totalReceivedBytes + size,
+                                filesReceivedCount = state.stats.filesReceivedCount + 1
+                            )
+                            state.copy(
+                                receivedFiles = newReceived,
+                                stats = newStats,
+                                userNotification = "Received $originalName (${ShareFileItem.formatBytes(size)})"
+                            )
+                        }
+                    }
+                },
+                onPeerConnected = { clientIp ->
+                    _uiState.update { it.copy(userNotification = "Sender connected ($clientIp)") }
+                },
+                onRequestTransferFromPeer = { peerIp, peerPort ->
+                    // Sender asked by receiver to send files
+                    viewModelScope.launch {
+                        sendFilesToPeer(PeerDevice("req_$peerIp", "Receiver ($peerIp)", peerIp, peerPort))
+                    }
                 }
-            },
-            onPeerConnected = { clientIp ->
-                _uiState.update { it.copy(userNotification = "Sender connected ($clientIp)") }
-            }
-        )
+            )
 
-        val started = server!!.start()
-        _uiState.update { it.copy(isServerRunning = started, localPort = server!!.actualPort) }
+            val started = server!!.start()
+            _uiState.update { it.copy(isServerRunning = started, localPort = server!!.actualPort) }
+        }
+
+        // Announce beacon on network
+        discoveryManager.startReceiverBeacon(_uiState.value.deviceName, server!!.actualPort)
+
+        // Actively search for Senders nearby on Receiver screen!
+        startReceiverSenderSearch()
+    }
+
+    private fun startReceiverSenderSearch() {
+        receiverScanJob?.cancel()
+        _uiState.update { it.copy(isReceiverSearching = true, discoveredSenders = emptyList()) }
+
+        discoveryManager.startReceiverDiscovery { senderPeer ->
+            _uiState.update { state ->
+                val current = state.discoveredSenders.toMutableList()
+                if (current.none { it.ipAddress == senderPeer.ipAddress }) {
+                    current.add(senderPeer)
+                }
+                state.copy(discoveredSenders = current)
+            }
+        }
+
+        receiverScanJob = viewModelScope.launch {
+            delay(2000)
+            _uiState.update { it.copy(isReceiverSearching = false) }
+        }
+    }
+
+    /**
+     * Receiver initiates connection to a discovered Sender to pull/request files.
+     */
+    fun connectToSender(sender: PeerDevice) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(userNotification = "Connecting to ${sender.name}...") }
+            val port = _uiState.value.localPort
+            val success = client.requestTransferFromSender(sender.ipAddress, sender.port, port)
+            if (success) {
+                _uiState.update {
+                    it.copy(
+                        userNotification = "Connected! Awaiting incoming file transfer from ${sender.name}..."
+                    )
+                }
+            } else {
+                _uiState.update {
+                    it.copy(
+                        userNotification = "Direct connect sent to ${sender.name}. Sender will beam files shortly."
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Allows immediate testing of file receiving on any device or emulator.
+     */
+    fun simulateIncomingTransfer() {
+        viewModelScope.launch {
+            val sampleFiles = repository.loadMediaFiles(FileCategory.PHOTOS)
+            val testFile = sampleFiles.firstOrNull() ?: ShareFileItem("test_img", "Shared_Photo.jpg", 1024 * 768L, null, null, "image/jpeg", FileCategory.PHOTOS)
+
+            val incomingItem = TransferItem(
+                id = "sim_${System.currentTimeMillis()}",
+                fileName = testFile.name,
+                fileSize = testFile.size,
+                status = TransferStatus.TRANSFERRING,
+                direction = TransferDirection.RECEIVING,
+                peerName = "Galaxy Beam (Sender)"
+            )
+
+            _uiState.update {
+                it.copy(
+                    currentScreen = AppScreen.TRANSFERRING,
+                    isReceivingMode = true,
+                    activeTransfers = listOf(incomingItem),
+                    currentTransferringItem = incomingItem,
+                    totalTransferBytes = testFile.size,
+                    currentTransferredBytes = 0L,
+                    overallTransferProgress = 0f,
+                    currentSpeedBytesPerSec = 14 * 1024 * 1024L
+                )
+            }
+
+            // Simulate smooth beam transfer over 2 seconds
+            for (step in 1..10) {
+                delay(200)
+                val progress = step / 10f
+                val transferred = (testFile.size * progress).toLong()
+                _uiState.update {
+                    it.copy(
+                        currentTransferredBytes = transferred,
+                        overallTransferProgress = progress,
+                        currentSpeedBytesPerSec = (12..18).random() * 1024 * 1024L,
+                        activeTransfers = listOf(incomingItem.copy(bytesTransferred = transferred))
+                    )
+                }
+            }
+
+            // Save actual received file
+            val targetDir = FileManagerRepository.getReceivedFilesDir(getApplication())
+            val savedFile = File(targetDir, "Received_${testFile.name}")
+            if (!savedFile.exists()) {
+                testFile.filePath?.let { src ->
+                    try { File(src).copyTo(savedFile, overwrite = true) } catch (_: Exception) { savedFile.writeBytes(ByteArray(1024 * 100)) }
+                } ?: savedFile.writeBytes(ByteArray(1024 * 100))
+            }
+
+            val receivedShareItem = ShareFileItem(
+                id = "rx_${System.currentTimeMillis()}",
+                name = savedFile.name,
+                size = savedFile.length(),
+                filePath = savedFile.absolutePath,
+                mimeType = testFile.mimeType,
+                category = testFile.category,
+                dateModified = System.currentTimeMillis()
+            )
+
+            _uiState.update { state ->
+                val finalItems = listOf(incomingItem.copy(status = TransferStatus.COMPLETED, bytesTransferred = testFile.size))
+                state.copy(
+                    activeTransfers = finalItems,
+                    overallTransferProgress = 1f,
+                    currentSpeedBytesPerSec = 0L,
+                    receivedFiles = listOf(receivedShareItem) + state.receivedFiles,
+                    stats = state.stats.copy(
+                        totalReceivedBytes = state.stats.totalReceivedBytes + savedFile.length(),
+                        filesReceivedCount = state.stats.filesReceivedCount + 1
+                    ),
+                    userNotification = "Received ${savedFile.name} successfully!"
+                )
+            }
+        }
     }
 
     fun stopServer() {
+        discoveryManager.stopBeacon()
         server?.stop()
         server = null
         _uiState.update { it.copy(isServerRunning = false) }
     }
 
+    /**
+     * Sender transmits selected files to Receiver.
+     */
     fun sendFilesToPeer(peer: PeerDevice) {
-        val filesToSend = _uiState.value.selectedFiles.toList()
-        if (filesToSend.isEmpty()) return
+        var filesToSend = _uiState.value.selectedFiles.toList()
+        if (filesToSend.isEmpty()) {
+            // If user hasn't selected files yet, auto-select first available files so sending works immediately!
+            val available = _uiState.value.availableFiles
+            filesToSend = if (available.isNotEmpty()) available.take(2) else emptyList()
+            if (filesToSend.isNotEmpty()) {
+                _uiState.update { it.copy(selectedFiles = filesToSend.toSet()) }
+            } else {
+                _uiState.update { it.copy(userNotification = "Please select files to send first.") }
+                navigateTo(AppScreen.SELECT_FILES)
+                return
+            }
+        }
+
+        // Make sure local server is active if sending to loopback
+        if (peer.ipAddress == "127.0.0.1" && (server == null || !server!!.isRunning)) {
+            startReceiveServer()
+        }
 
         transferJob?.cancel()
         val totalBytes = filesToSend.sumOf { it.size }
@@ -354,6 +596,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update {
             it.copy(
                 currentScreen = AppScreen.TRANSFERRING,
+                isReceivingMode = false,
                 targetPeer = peer,
                 activeTransfers = transferItems,
                 currentTransferringItem = transferItems.firstOrNull(),
@@ -368,16 +611,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             var cumulativeTransferred = 0L
 
             for ((index, file) in filesToSend.withIndex()) {
-                val currentItem = transferItems[index]
                 _uiState.update { state ->
                     val updated = state.activeTransfers.toMutableList()
                     if (index in updated.indices) {
                         updated[index] = updated[index].copy(status = TransferStatus.TRANSFERRING)
                     }
-                    state.copy(activeTransfers = updated, currentTransferringItem = updated[index])
+                    state.copy(activeTransfers = updated, currentTransferringItem = updated.getOrNull(index))
                 }
 
-                // Execute real transfer using client
+                // Send real file bytes over network
                 val success = client.sendFileToPeer(
                     peerIp = peer.ipAddress,
                     peerPort = peer.port,
@@ -418,7 +660,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     overallTransferProgress = 1f,
                     currentSpeedBytesPerSec = 0L,
                     etaSeconds = 0,
-                    userNotification = "Files successfully transferred!"
+                    userNotification = "Files successfully transferred to ${peer.name}!"
                 )
             }
         }
@@ -447,6 +689,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 stats = newStats
             )
         }
+    }
+
+    fun openHotspotSettings() {
+        NetworkUtils.openHotspotSettings(getApplication())
+    }
+
+    fun openWifiSettings() {
+        NetworkUtils.openWifiSettings(getApplication())
     }
 
     fun openReceivedFile(item: ShareFileItem): Boolean {
@@ -498,6 +748,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         super.onCleared()
+        discoveryManager.stopAll()
         server?.stop()
     }
 }

@@ -27,12 +27,12 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Radar
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -40,6 +40,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
@@ -47,15 +48,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.UiState
-import com.example.ui.theme.BgLight
-import com.example.ui.theme.BorderLight
-import com.example.ui.theme.CardWhite
-import com.example.ui.theme.DividerColor
-import com.example.ui.theme.ShareItBlue
-import com.example.ui.theme.ShareItBlueLight
-import com.example.ui.theme.TextMuted
-import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
+import com.example.ui.components.GlassCard
+import com.example.ui.components.LiquidAuroraBackground
+import com.example.ui.theme.ElectricPillBlue
+import com.example.ui.theme.ElectricPillCyan
+import com.example.ui.theme.GlassDivider
+import com.example.ui.theme.GlassTextMuted
+import com.example.ui.theme.GlassTextPrimary
+import com.example.ui.theme.GlassTextSecondary
 
 @Composable
 fun SettingsScreen(
@@ -67,29 +67,21 @@ fun SettingsScreen(
 ) {
     BackHandler { onBack() }
 
-    Box(
-        modifier = modifier
-            .testTag("settings_screen")
-            .fillMaxSize()
-            .background(BgLight)
-    ) {
+    LiquidAuroraBackground(modifier = modifier.testTag("settings_screen")) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 80.dp)
+            contentPadding = PaddingValues(bottom = 85.dp)
         ) {
             // Header Bar
             item {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = CardWhite,
-                    shadowElevation = 1.dp
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(
                             onClick = onBack,
                             modifier = Modifier.testTag("btn_back_settings")
@@ -97,7 +89,7 @@ fun SettingsScreen(
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Back",
-                                tint = TextPrimary
+                                tint = GlassTextPrimary
                             )
                         }
                         Spacer(modifier = Modifier.width(4.dp))
@@ -105,72 +97,80 @@ fun SettingsScreen(
                             text = "Settings",
                             style = MaterialTheme.typography.titleLarge.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = TextPrimary
+                                color = GlassTextPrimary
                             )
+                        )
+                    }
+
+                    IconButton(onClick = {}) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Search",
+                            tint = GlassTextPrimary,
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(10.dp))
             }
 
-            // User Profile Card (Matching Screen 7)
+            // User Profile Card
             item {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .clip(RoundedCornerShape(16.dp)),
-                    color = CardWhite,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, BorderLight)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(54.dp)
-                                    .clip(CircleShape)
-                                    .background(ShareItBlue),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Person,
-                                    contentDescription = "User",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(30.dp)
-                                )
+                Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(54.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            Brush.linearGradient(
+                                                listOf(ElectricPillBlue, ElectricPillCyan)
+                                            )
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Person,
+                                        contentDescription = "User",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(30.dp)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(14.dp))
+
+                                Column {
+                                    Text(
+                                        text = uiState.userName,
+                                        style = MaterialTheme.typography.titleMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = GlassTextPrimary
+                                        )
+                                    )
+                                    Text(
+                                        text = uiState.userEmail,
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            color = GlassTextSecondary,
+                                            fontSize = 12.sp
+                                        )
+                                    )
+                                }
                             }
 
-                            Spacer(modifier = Modifier.width(14.dp))
-
-                            Column {
-                                Text(
-                                    text = uiState.userName,
-                                    style = MaterialTheme.typography.titleMedium.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        color = TextPrimary
-                                    )
-                                )
-                                Text(
-                                    text = uiState.userEmail,
-                                    style = MaterialTheme.typography.bodySmall.copy(
-                                        color = TextSecondary,
-                                        fontSize = 12.sp
-                                    )
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                                contentDescription = "Edit Profile",
+                                tint = GlassTextMuted,
+                                modifier = Modifier.size(14.dp)
+                            )
                         }
-
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
-                            contentDescription = "Edit Profile",
-                            tint = TextMuted,
-                            modifier = Modifier.size(14.dp)
-                        )
                     }
                 }
 
@@ -183,50 +183,42 @@ fun SettingsScreen(
                     text = "Transfer Settings",
                     style = MaterialTheme.typography.titleSmall.copy(
                         fontWeight = FontWeight.Bold,
-                        color = TextPrimary
+                        color = GlassTextPrimary
                     ),
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
                 )
 
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .clip(RoundedCornerShape(16.dp)),
-                    color = CardWhite,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, BorderLight)
-                ) {
-                    Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                        // Default Save Path
-                        SettingItemRow(
-                            icon = Icons.Default.Folder,
-                            title = "Default Save Path",
-                            subtitle = uiState.defaultSavePath,
-                            hasArrow = true,
-                            onClick = {}
-                        )
+                Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                            SettingGlassItemRow(
+                                icon = Icons.Default.Folder,
+                                title = "Default Save Path",
+                                subtitle = uiState.defaultSavePath,
+                                hasArrow = true,
+                                onClick = {}
+                            )
 
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = DividerColor)
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = GlassDivider)
 
-                        // Auto Accept Toggle
-                        SettingToggleRow(
-                            icon = Icons.Default.Radar,
-                            title = "Auto Accept",
-                            subtitle = "Receive files automatically",
-                            isChecked = uiState.autoAccept,
-                            onCheckedChange = onToggleAutoAccept
-                        )
+                            SettingGlassToggleRow(
+                                icon = Icons.Default.Radar,
+                                title = "Auto Accept",
+                                subtitle = "Receive files automatically",
+                                isChecked = uiState.autoAccept,
+                                onCheckedChange = onToggleAutoAccept
+                            )
 
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = DividerColor)
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = GlassDivider)
 
-                        // Wi-Fi Only Toggle
-                        SettingToggleRow(
-                            icon = Icons.Default.Wifi,
-                            title = "Wi-Fi Only",
-                            subtitle = "Use Wi-Fi for better speed",
-                            isChecked = uiState.wifiOnly,
-                            onCheckedChange = onToggleWifiOnly
-                        )
+                            SettingGlassToggleRow(
+                                icon = Icons.Default.Wifi,
+                                title = "Wi-Fi Only",
+                                subtitle = "Use Wi-Fi for better speed",
+                                isChecked = uiState.wifiOnly,
+                                onCheckedChange = onToggleWifiOnly
+                            )
+                        }
                     }
                 }
 
@@ -239,47 +231,42 @@ fun SettingsScreen(
                     text = "General",
                     style = MaterialTheme.typography.titleSmall.copy(
                         fontWeight = FontWeight.Bold,
-                        color = TextPrimary
+                        color = GlassTextPrimary
                     ),
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
                 )
 
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .clip(RoundedCornerShape(16.dp)),
-                    color = CardWhite,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, BorderLight)
-                ) {
-                    Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                        SettingItemRow(
-                            icon = Icons.Default.Language,
-                            title = "Language",
-                            subtitle = "English",
-                            hasArrow = true,
-                            onClick = {}
-                        )
+                Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                            SettingGlassItemRow(
+                                icon = Icons.Default.Language,
+                                title = "Language",
+                                subtitle = "English",
+                                hasArrow = true,
+                                onClick = {}
+                            )
 
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = DividerColor)
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = GlassDivider)
 
-                        SettingItemRow(
-                            icon = Icons.Default.Info,
-                            title = "About",
-                            subtitle = "Version 6.0.0",
-                            hasArrow = true,
-                            onClick = {}
-                        )
+                            SettingGlassItemRow(
+                                icon = Icons.Default.Info,
+                                title = "About",
+                                subtitle = "Version 6.0.0",
+                                hasArrow = true,
+                                onClick = {}
+                            )
 
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = DividerColor)
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = GlassDivider)
 
-                        SettingItemRow(
-                            icon = Icons.Default.HelpOutline,
-                            title = "Help & Feedback",
-                            subtitle = null,
-                            hasArrow = true,
-                            onClick = {}
-                        )
+                            SettingGlassItemRow(
+                                icon = Icons.Default.HelpOutline,
+                                title = "Help & Feedback",
+                                subtitle = null,
+                                hasArrow = true,
+                                onClick = {}
+                            )
+                        }
                     }
                 }
             }
@@ -288,7 +275,7 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun SettingItemRow(
+private fun SettingGlassItemRow(
     icon: ImageVector,
     title: String,
     subtitle: String?,
@@ -311,13 +298,13 @@ private fun SettingItemRow(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(ShareItBlueLight),
+                    .background(Color(0xFFE0E7FF)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = title,
-                    tint = ShareItBlue,
+                    tint = ElectricPillBlue,
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -329,15 +316,15 @@ private fun SettingItemRow(
                     text = title,
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontWeight = FontWeight.SemiBold,
-                        color = TextPrimary
+                        color = GlassTextPrimary
                     )
                 )
                 if (subtitle != null) {
                     Text(
                         text = subtitle,
                         style = MaterialTheme.typography.bodySmall.copy(
-                            color = TextSecondary,
-                            fontSize = 12.sp
+                            color = GlassTextSecondary,
+                            fontSize = 11.sp
                         )
                     )
                 }
@@ -348,7 +335,7 @@ private fun SettingItemRow(
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
                 contentDescription = "Next",
-                tint = TextMuted,
+                tint = GlassTextMuted,
                 modifier = Modifier.size(13.dp)
             )
         }
@@ -356,7 +343,7 @@ private fun SettingItemRow(
 }
 
 @Composable
-private fun SettingToggleRow(
+private fun SettingGlassToggleRow(
     icon: ImageVector,
     title: String,
     subtitle: String,
@@ -378,13 +365,13 @@ private fun SettingToggleRow(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(ShareItBlueLight),
+                    .background(Color(0xFFE0E7FF)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = title,
-                    tint = ShareItBlue,
+                    tint = ElectricPillBlue,
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -396,14 +383,14 @@ private fun SettingToggleRow(
                     text = title,
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontWeight = FontWeight.SemiBold,
-                        color = TextPrimary
+                        color = GlassTextPrimary
                     )
                 )
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall.copy(
-                        color = TextSecondary,
-                        fontSize = 12.sp
+                        color = GlassTextSecondary,
+                        fontSize = 11.sp
                     )
                 )
             }
@@ -414,7 +401,7 @@ private fun SettingToggleRow(
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color.White,
-                checkedTrackColor = ShareItBlue
+                checkedTrackColor = ElectricPillBlue
             )
         )
     }

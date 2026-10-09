@@ -21,19 +21,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Android
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.NearMe
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Button
@@ -47,7 +46,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -57,6 +55,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -71,20 +70,19 @@ import coil.request.ImageRequest
 import com.example.model.FileCategory
 import com.example.model.ShareFileItem
 import com.example.ui.UiState
-import com.example.ui.theme.BgLight
-import com.example.ui.theme.BorderLight
-import com.example.ui.theme.CardWhite
-import com.example.ui.theme.CategoryAppGreen
-import com.example.ui.theme.CategoryDocBlue
-import com.example.ui.theme.CategoryMusicOrange
-import com.example.ui.theme.CategoryPhotoPink
-import com.example.ui.theme.CategoryVideoPurple
-import com.example.ui.theme.DividerColor
-import com.example.ui.theme.ShareItBlue
-import com.example.ui.theme.ShareItBlueLight
-import com.example.ui.theme.TextMuted
-import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
+import com.example.ui.components.GlassCard
+import com.example.ui.components.LiquidAuroraBackground
+import com.example.ui.theme.CatAppGreen
+import com.example.ui.theme.CatDocBlue
+import com.example.ui.theme.CatMusicOrange
+import com.example.ui.theme.CatPhotoPink
+import com.example.ui.theme.CatVideoPurple
+import com.example.ui.theme.ElectricPillBlue
+import com.example.ui.theme.ElectricPillCyan
+import com.example.ui.theme.GlassDivider
+import com.example.ui.theme.GlassTextMuted
+import com.example.ui.theme.GlassTextPrimary
+import com.example.ui.theme.GlassTextSecondary
 
 @Composable
 fun SendSelectorScreen(
@@ -99,7 +97,6 @@ fun SendSelectorScreen(
     modifier: Modifier = Modifier
 ) {
     BackHandler { onBack() }
-
     var isSearchActive by remember { mutableStateOf(false) }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -117,297 +114,306 @@ fun SendSelectorScreen(
 
     val allSelected = filteredFiles.isNotEmpty() && filteredFiles.all { f -> uiState.selectedFiles.any { it.id == f.id } }
 
-    Box(
-        modifier = modifier
-            .testTag("send_selector_screen")
-            .fillMaxSize()
-            .background(BgLight)
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Top App Bar
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = CardWhite,
-                shadowElevation = 1.dp
-            ) {
-                Column {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(
-                                onClick = onBack,
-                                modifier = Modifier.testTag("btn_back_selector")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "Back",
-                                    tint = TextPrimary
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "Select Files",
-                                style = MaterialTheme.typography.titleLarge.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = TextPrimary
-                                )
-                            )
-                        }
-
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(
-                                onClick = { isSearchActive = !isSearchActive },
-                                modifier = Modifier.testTag("btn_toggle_search")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Search,
-                                    contentDescription = "Search",
-                                    tint = TextPrimary,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                            IconButton(
-                                onClick = { filePickerLauncher.launch(arrayOf("*/*")) },
-                                modifier = Modifier.testTag("btn_browse_files")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = "Browse Any File",
-                                    tint = ShareItBlue,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    // Optional Search Field
-                    if (isSearchActive) {
-                        OutlinedTextField(
-                            value = uiState.searchQuery,
-                            onValueChange = onSearchQueryChange,
-                            placeholder = { Text("Filter files...", color = TextSecondary) },
+    LiquidAuroraBackground(modifier = modifier.testTag("send_selector_screen")) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Frosted Glass Top Bar & Category Tabs
+                GlassCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    cornerRadius = 0.dp
+                ) {
+                    Column {
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 4.dp),
-                            singleLine = true,
-                            trailingIcon = {
-                                if (uiState.searchQuery.isNotEmpty()) {
-                                    IconButton(onClick = { onSearchQueryChange("") }) {
-                                        Icon(Icons.Default.Clear, contentDescription = "Clear", tint = TextSecondary)
-                                    }
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                    onClick = onBack,
+                                    modifier = Modifier.testTag("btn_back_selector")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = "Back",
+                                        tint = GlassTextPrimary
+                                    )
                                 }
-                            },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = ShareItBlue,
-                                unfocusedBorderColor = BorderLight
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Select Files",
+                                    style = MaterialTheme.typography.titleLarge.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = GlassTextPrimary
+                                    )
+                                )
+                            }
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(onClick = { isSearchActive = !isSearchActive }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Search,
+                                        contentDescription = "Search",
+                                        tint = GlassTextPrimary,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                                IconButton(onClick = { filePickerLauncher.launch(arrayOf("*/*")) }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Pick Files",
+                                        tint = ElectricPillBlue,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        if (isSearchActive) {
+                            OutlinedTextField(
+                                value = uiState.searchQuery,
+                                onValueChange = onSearchQueryChange,
+                                placeholder = { Text("Search files on device...", color = GlassTextSecondary) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                                singleLine = true,
+                                trailingIcon = {
+                                    if (uiState.searchQuery.isNotEmpty()) {
+                                        IconButton(onClick = { onSearchQueryChange("") }) {
+                                            Icon(Icons.Default.Clear, contentDescription = "Clear", tint = GlassTextSecondary)
+                                        }
+                                    }
+                                },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = ElectricPillBlue,
+                                    unfocusedBorderColor = GlassDivider
+                                )
                             )
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                    }
+                            Spacer(modifier = Modifier.height(4.dp))
+                        }
 
-                    // Category Tabs Row: Photos, Videos, Music, Documents, Apps
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 10.dp, horizontal = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceAround
-                    ) {
-                        CategoryTabItem(
-                            label = "Photos",
-                            icon = Icons.Default.Image,
-                            isSelected = uiState.selectedCategory == FileCategory.PHOTOS,
-                            color = CategoryPhotoPink,
-                            onClick = { onSelectCategory(FileCategory.PHOTOS) }
-                        )
-                        CategoryTabItem(
-                            label = "Videos",
-                            icon = Icons.Default.Videocam,
-                            isSelected = uiState.selectedCategory == FileCategory.VIDEOS,
-                            color = CategoryVideoPurple,
-                            onClick = { onSelectCategory(FileCategory.VIDEOS) }
-                        )
-                        CategoryTabItem(
-                            label = "Music",
-                            icon = Icons.Default.MusicNote,
-                            isSelected = uiState.selectedCategory == FileCategory.MUSIC,
-                            color = CategoryMusicOrange,
-                            onClick = { onSelectCategory(FileCategory.MUSIC) }
-                        )
-                        CategoryTabItem(
-                            label = "Documents",
-                            icon = Icons.Default.Description,
-                            isSelected = uiState.selectedCategory == FileCategory.DOCS,
-                            color = CategoryDocBlue,
-                            onClick = { onSelectCategory(FileCategory.DOCS) }
-                        )
-                        CategoryTabItem(
-                            label = "Apps",
-                            icon = Icons.Default.Android,
-                            isSelected = uiState.selectedCategory == FileCategory.APPS,
-                            color = CategoryAppGreen,
-                            onClick = { onSelectCategory(FileCategory.APPS) }
-                        )
-                    }
-
-                    HorizontalDivider(color = DividerColor)
-
-                    // "Select All" Checkbox Bar
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelectAll() }
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(
-                                checked = allSelected,
-                                onCheckedChange = { onSelectAll() },
-                                colors = CheckboxDefaults.colors(checkedColor = ShareItBlue),
-                                modifier = Modifier.size(20.dp)
+                        // Category Tabs Row: Photos, Videos, Music, Documents, Apps
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 10.dp, horizontal = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceAround
+                        ) {
+                            CategoryTabItem(
+                                label = "Photos",
+                                icon = Icons.Default.Image,
+                                isSelected = uiState.selectedCategory == FileCategory.PHOTOS,
+                                color = CatPhotoPink,
+                                onClick = { onSelectCategory(FileCategory.PHOTOS) }
                             )
-                            Spacer(modifier = Modifier.width(10.dp))
+                            CategoryTabItem(
+                                label = "Videos",
+                                icon = Icons.Default.Videocam,
+                                isSelected = uiState.selectedCategory == FileCategory.VIDEOS,
+                                color = CatVideoPurple,
+                                onClick = { onSelectCategory(FileCategory.VIDEOS) }
+                            )
+                            CategoryTabItem(
+                                label = "Music",
+                                icon = Icons.Default.MusicNote,
+                                isSelected = uiState.selectedCategory == FileCategory.MUSIC,
+                                color = CatMusicOrange,
+                                onClick = { onSelectCategory(FileCategory.MUSIC) }
+                            )
+                            CategoryTabItem(
+                                label = "Documents",
+                                icon = Icons.Default.Description,
+                                isSelected = uiState.selectedCategory == FileCategory.DOCS,
+                                color = CatDocBlue,
+                                onClick = { onSelectCategory(FileCategory.DOCS) }
+                            )
+                            CategoryTabItem(
+                                label = "Apps",
+                                icon = Icons.Default.Android,
+                                isSelected = uiState.selectedCategory == FileCategory.APPS,
+                                color = CatAppGreen,
+                                onClick = { onSelectCategory(FileCategory.APPS) }
+                            )
+                        }
+
+                        HorizontalDivider(color = GlassDivider)
+
+                        // "Select All" Checkbox Bar
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onSelectAll() }
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(
+                                    checked = allSelected,
+                                    onCheckedChange = { onSelectAll() },
+                                    colors = CheckboxDefaults.colors(checkedColor = ElectricPillBlue),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "Select All",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = GlassTextPrimary
+                                    )
+                                )
+                            }
+
                             Text(
-                                text = "Select All",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = TextPrimary
+                                text = "${uiState.selectedFiles.size} items • ${uiState.formattedSelectedBytes}",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = GlassTextSecondary,
+                                    fontWeight = FontWeight.Medium
                                 )
                             )
                         }
-
-                        Text(
-                            text = "${filteredFiles.size} items",
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                color = TextSecondary,
-                                fontWeight = FontWeight.Medium
-                            )
-                        )
                     }
                 }
-            }
 
-            // Real Files List
-            if (uiState.isLoadingFiles) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = ShareItBlue)
-                }
-            } else if (filteredFiles.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(32.dp)
+                // File Items List
+                if (uiState.isLoadingFiles) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.FolderOpen,
-                            contentDescription = "No Files",
-                            tint = TextMuted,
-                            modifier = Modifier.size(48.dp)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "No files found in this category on device.",
-                            style = MaterialTheme.typography.bodyMedium.copy(color = TextSecondary),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(14.dp))
-                        Button(
-                            onClick = { filePickerLauncher.launch(arrayOf("*/*")) },
-                            colors = ButtonDefaults.buttonColors(containerColor = ShareItBlue),
-                            shape = RoundedCornerShape(12.dp)
+                        CircularProgressIndicator(color = ElectricPillBlue)
+                    }
+                } else if (filteredFiles.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(32.dp)
                         ) {
-                            Text("Browse Files from Storage", color = Color.White)
+                            Icon(
+                                imageVector = Icons.Default.FolderOpen,
+                                contentDescription = "No Files",
+                                tint = GlassTextMuted,
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = "No files found in this category.",
+                                style = MaterialTheme.typography.bodyMedium.copy(color = GlassTextSecondary)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Button(
+                                onClick = { filePickerLauncher.launch(arrayOf("*/*")) },
+                                colors = ButtonDefaults.buttonColors(containerColor = ElectricPillBlue),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("Browse from Storage", color = Color.White)
+                            }
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .padding(horizontal = 14.dp),
+                        contentPadding = PaddingValues(top = 8.dp, bottom = 95.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(filteredFiles, key = { it.id }) { file ->
+                            val isSelected = uiState.selectedFiles.any { it.id == file.id }
+                            SelectableGlassFileRow(
+                                file = file,
+                                isSelected = isSelected,
+                                onToggle = { onToggleSelectFile(file) }
+                            )
                         }
                     }
                 }
-            } else {
-                LazyColumn(
+            }
+
+            // Bottom Floating Glass Bar: "X files selected / X.X MB" + "Send"
+            GlassCard(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .navigationBarsPadding(),
+                cornerRadius = 0.dp
+            ) {
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f)
-                        .padding(horizontal = 14.dp),
-                    contentPadding = PaddingValues(top = 8.dp, bottom = 90.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                        .padding(horizontal = 18.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    items(filteredFiles, key = { it.id }) { file ->
-                        val isSelected = uiState.selectedFiles.any { it.id == file.id }
-                        SelectableFileRow(
-                            file = file,
-                            isSelected = isSelected,
-                            onToggle = { onToggleSelectFile(file) }
+                    Column {
+                        Text(
+                            text = "${uiState.selectedFiles.size} files selected",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = GlassTextPrimary
+                            )
+                        )
+                        Text(
+                            text = uiState.formattedSelectedBytes,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = GlassTextSecondary,
+                                fontSize = 12.sp
+                            )
                         )
                     }
-                }
-            }
-        }
 
-        // Bottom Sticky Bar: "X selected (X.X MB)" + "Send" Button
-        Surface(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .navigationBarsPadding(),
-            color = CardWhite,
-            shadowElevation = 8.dp,
-            border = androidx.compose.foundation.BorderStroke(1.dp, DividerColor)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "${uiState.selectedFiles.size} selected (${uiState.formattedSelectedBytes})",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextPrimary
-                    )
-                )
-
-                Button(
-                    onClick = onSend,
-                    enabled = uiState.selectedFiles.isNotEmpty(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = ShareItBlue,
-                        disabledContainerColor = ShareItBlue.copy(alpha = 0.4f)
-                    ),
-                    shape = RoundedCornerShape(22.dp),
-                    modifier = Modifier
-                        .testTag("btn_selector_send")
-                        .height(44.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.NearMe,
-                        contentDescription = "Send",
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Send",
-                        style = MaterialTheme.typography.titleSmall.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    )
+                    Button(
+                        onClick = onSend,
+                        enabled = uiState.selectedFiles.isNotEmpty(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                        shape = RoundedCornerShape(24.dp),
+                        contentPadding = PaddingValues(0.dp),
+                        modifier = Modifier
+                            .testTag("btn_selector_send")
+                            .height(44.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    if (uiState.selectedFiles.isNotEmpty()) {
+                                        Brush.horizontalGradient(listOf(ElectricPillBlue, ElectricPillCyan))
+                                    } else {
+                                        Brush.horizontalGradient(listOf(Color(0xFFCBD5E1), Color(0xFFCBD5E1)))
+                                    },
+                                    RoundedCornerShape(24.dp)
+                                )
+                                .padding(horizontal = 22.dp, vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.NearMe,
+                                    contentDescription = "Send",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Send",
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -426,13 +432,13 @@ private fun CategoryTabItem(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .clickable(onClick = onClick)
-            .padding(horizontal = 6.dp)
+            .padding(horizontal = 4.dp)
     ) {
         Box(
             modifier = Modifier
                 .size(44.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(if (isSelected) ShareItBlue else BgLight),
+                .background(if (isSelected) ElectricPillBlue else Color.White.copy(alpha = 0.5f)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
@@ -447,7 +453,7 @@ private fun CategoryTabItem(
             text = label,
             style = MaterialTheme.typography.labelSmall.copy(
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                color = if (isSelected) ShareItBlue else TextSecondary,
+                color = if (isSelected) ElectricPillBlue else GlassTextSecondary,
                 fontSize = 11.sp
             )
         )
@@ -455,20 +461,18 @@ private fun CategoryTabItem(
 }
 
 @Composable
-private fun SelectableFileRow(
+private fun SelectableGlassFileRow(
     file: ShareFileItem,
     isSelected: Boolean,
     onToggle: () -> Unit
 ) {
     val context = LocalContext.current
 
-    Surface(
+    GlassCard(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onToggle),
-        color = CardWhite,
-        border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) ShareItBlueLight else BorderLight)
+        cornerRadius = 14.dp
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -479,7 +483,6 @@ private fun SelectableFileRow(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
             ) {
-                // Thumbnail preview or category icon
                 if (file.category == FileCategory.PHOTOS && file.uri != null) {
                     AsyncImage(
                         model = ImageRequest.Builder(context)
@@ -494,11 +497,11 @@ private fun SelectableFileRow(
                     )
                 } else {
                     val (icon, bgCol) = when (file.category) {
-                        FileCategory.APPS -> Icons.Default.Android to CategoryAppGreen
-                        FileCategory.VIDEOS -> Icons.Default.Videocam to CategoryVideoPurple
-                        FileCategory.MUSIC -> Icons.Default.MusicNote to CategoryMusicOrange
-                        FileCategory.DOCS -> Icons.Default.Description to CategoryDocBlue
-                        else -> Icons.Default.Image to CategoryPhotoPink
+                        FileCategory.APPS -> Icons.Default.Android to CatAppGreen
+                        FileCategory.VIDEOS -> Icons.Default.Videocam to CatVideoPurple
+                        FileCategory.MUSIC -> Icons.Default.MusicNote to CatMusicOrange
+                        FileCategory.DOCS -> Icons.Default.Description to CatDocBlue
+                        else -> Icons.Default.Image to CatPhotoPink
                     }
                     Box(
                         modifier = Modifier
@@ -523,7 +526,7 @@ private fun SelectableFileRow(
                         text = file.name,
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontWeight = FontWeight.SemiBold,
-                            color = TextPrimary
+                            color = GlassTextPrimary
                         ),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -532,8 +535,8 @@ private fun SelectableFileRow(
                     Text(
                         text = file.formattedSize,
                         style = MaterialTheme.typography.bodySmall.copy(
-                            color = TextSecondary,
-                            fontSize = 12.sp
+                            color = GlassTextSecondary,
+                            fontSize = 11.sp
                         )
                     )
                 }
@@ -543,8 +546,8 @@ private fun SelectableFileRow(
                 checked = isSelected,
                 onCheckedChange = { onToggle() },
                 colors = CheckboxDefaults.colors(
-                    checkedColor = ShareItBlue,
-                    uncheckedColor = TextMuted
+                    checkedColor = ElectricPillBlue,
+                    uncheckedColor = GlassTextMuted
                 )
             )
         }

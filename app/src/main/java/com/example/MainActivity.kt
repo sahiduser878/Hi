@@ -1,9 +1,13 @@
 package com.example
 
+import android.Manifest
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -45,6 +49,26 @@ class MainActivity : ComponentActivity() {
                 val viewModel: MainViewModel = viewModel()
                 val uiState by viewModel.uiState.collectAsStateWithLifecycle()
                 val snackbarHostState = remember { SnackbarHostState() }
+
+                // Request storage / media permissions at runtime
+                val permissionsLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.RequestMultiplePermissions()
+                ) { result ->
+                    viewModel.onPermissionsResult(result)
+                }
+
+                LaunchedEffect(Unit) {
+                    val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        arrayOf(
+                            Manifest.permission.READ_MEDIA_IMAGES,
+                            Manifest.permission.READ_MEDIA_VIDEO,
+                            Manifest.permission.READ_MEDIA_AUDIO
+                        )
+                    } else {
+                        arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+                    }
+                    permissionsLauncher.launch(permissions)
+                }
 
                 LaunchedEffect(uiState.userNotification) {
                     uiState.userNotification?.let { msg ->
@@ -106,7 +130,9 @@ class MainActivity : ComponentActivity() {
                                         viewModel.navigateTo(AppScreen.RECEIVE_FILES)
                                     },
                                     onSendToPeer = { viewModel.sendFilesToPeer(it) },
-                                    onConnectManualIp = { viewModel.sendFilesToPeer(com.example.model.PeerDevice("direct", "Direct Receiver", it, 8888)) }
+                                    onConnectManualIp = { viewModel.sendFilesToPeer(com.example.model.PeerDevice("direct", "Receiver ($it)", it, 8888)) },
+                                    onOpenHotspotSettings = { viewModel.openHotspotSettings() },
+                                    onOpenWifiSettings = { viewModel.openWifiSettings() }
                                 )
                             }
 
@@ -116,7 +142,11 @@ class MainActivity : ComponentActivity() {
                                     onBack = {
                                         viewModel.stopServer()
                                         viewModel.navigateTo(AppScreen.HOME)
-                                    }
+                                    },
+                                    onConnectToSender = { viewModel.connectToSender(it) },
+                                    onSimulateReceive = { viewModel.simulateIncomingTransfer() },
+                                    onOpenHotspotSettings = { viewModel.openHotspotSettings() },
+                                    onOpenWifiSettings = { viewModel.openWifiSettings() }
                                 )
                             }
 

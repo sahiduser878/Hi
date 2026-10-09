@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,17 +15,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.East
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PhoneAndroid
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -32,31 +30,28 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.ShareFileItem
-import com.example.model.TransferStatus
 import com.example.ui.UiState
-import com.example.ui.theme.BgLight
-import com.example.ui.theme.BorderLight
-import com.example.ui.theme.CardWhite
-import com.example.ui.theme.CategoryPhotoPink
-import com.example.ui.theme.ShareItBlue
-import com.example.ui.theme.ShareItBlueLight
-import com.example.ui.theme.ShareItGreen
-import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
+import com.example.ui.components.GlassCard
+import com.example.ui.components.LiquidAuroraBackground
+import com.example.ui.theme.CatPhotoPink
+import com.example.ui.theme.ElectricPillBlue
+import com.example.ui.theme.ElectricPillCyan
+import com.example.ui.theme.EmeraldPillGreen
+import com.example.ui.theme.GlassTextPrimary
+import com.example.ui.theme.GlassTextSecondary
 
 @Composable
 fun ActiveTransferScreen(
@@ -68,162 +63,150 @@ fun ActiveTransferScreen(
 
     val isFinished = uiState.overallTransferProgress >= 1f
     val currentItem = uiState.currentTransferringItem ?: uiState.activeTransfers.firstOrNull()
-    val receiverName = uiState.targetPeer?.name ?: "Remote Receiver"
+    val receiverName = uiState.targetPeer?.name ?: "Redmi Note 12"
 
-    Box(
-        modifier = modifier
-            .testTag("active_transfer_screen")
-            .fillMaxSize()
-            .background(BgLight)
+    LiquidAuroraBackground(
+        modifier = modifier.testTag("active_transfer_screen"),
+        isHeroDeepBlue = true
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Blue Top Hero Area (Matching Screen 5)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(ShareItBlue)
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp, vertical = 14.dp)
+        ) {
+            // Header Bar
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    // Header Bar
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = onBack,
-                            modifier = Modifier.testTag("btn_back_transfer")
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = Color.White
-                            )
-                        }
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier.testTag("btn_back_transfer")
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = Color.White
+                    )
+                }
 
-                        Text(
-                            text = if (isFinished) "Transfer Complete" else "Transferring...",
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                        )
+                Text(
+                    text = "Transferring...",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                )
 
-                        IconButton(onClick = {}) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = "Settings",
-                                tint = Color.White
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    // Phone to Phone transfer diagram
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 24.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Left: My Device (Sending)
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Box(
-                                modifier = Modifier
-                                    .size(64.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.White),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.PhoneAndroid,
-                                    contentDescription = "My Device",
-                                    tint = ShareItBlue,
-                                    modifier = Modifier.size(32.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "My Device",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                            )
-                            Text(
-                                text = "(Sending)",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    color = Color.White.copy(alpha = 0.8f)
-                                )
-                            )
-                        }
-
-                        // Middle: Animated transfer arrows
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "• • • >",
-                                style = MaterialTheme.typography.titleLarge.copy(
-                                    fontWeight = FontWeight.Black,
-                                    color = Color.White.copy(alpha = 0.9f),
-                                    fontSize = 20.sp
-                                )
-                            )
-                        }
-
-                        // Right: Remote Device (Receiving)
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Box(
-                                modifier = Modifier
-                                    .size(64.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.White),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.PhoneAndroid,
-                                    contentDescription = receiverName,
-                                    tint = ShareItBlue,
-                                    modifier = Modifier.size(32.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = receiverName,
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                ),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = "(Receiving)",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    color = Color.White.copy(alpha = 0.8f)
-                                )
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(28.dp))
+                IconButton(onClick = {}) {
+                    Icon(
+                        imageVector = Icons.Default.QrCodeScanner,
+                        contentDescription = "Options",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
 
-            // White Main Card below (Overlapping / Floating)
-            Surface(
+            Spacer(modifier = Modifier.height(28.dp))
+
+            // Phone to Phone transmission diagram
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
-                shape = RoundedCornerShape(18.dp),
-                color = CardWhite,
-                shadowElevation = 3.dp,
-                border = androidx.compose.foundation.BorderStroke(1.dp, BorderLight)
+                    .padding(horizontal = 24.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                // Left Device: My Device (Sending)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        modifier = Modifier
+                            .size(68.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.25f))
+                            .border(1.5.dp, Color.White, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PhoneAndroid,
+                            contentDescription = "My Device",
+                            tint = Color.White,
+                            modifier = Modifier.size(34.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "My Device",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    )
+                    Text(
+                        text = "(Sending)",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 11.sp
+                        )
+                    )
+                }
+
+                // Middle: Glowing transmission beam
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "• • • • >",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Black,
+                            color = Color.White.copy(alpha = 0.9f),
+                            fontSize = 20.sp
+                        )
+                    )
+                }
+
+                // Right Device: Remote Device (Receiving)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        modifier = Modifier
+                            .size(68.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.25f))
+                            .border(1.5.dp, Color.White, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PhoneAndroid,
+                            contentDescription = receiverName,
+                            tint = Color.White,
+                            modifier = Modifier.size(34.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = receiverName,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "(Receiving)",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 11.sp
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(36.dp))
+
+            // Main Frosted Glass Transfer Card
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(18.dp)) {
-                    // Current transferring file details
                     if (currentItem != null) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -233,13 +216,13 @@ fun ActiveTransferScreen(
                                 modifier = Modifier
                                     .size(48.dp)
                                     .clip(RoundedCornerShape(10.dp))
-                                    .background(CategoryPhotoPink.copy(alpha = 0.15f)),
+                                    .background(CatPhotoPink.copy(alpha = 0.15f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Image,
                                     contentDescription = "File",
-                                    tint = CategoryPhotoPink,
+                                    tint = CatPhotoPink,
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
@@ -251,16 +234,16 @@ fun ActiveTransferScreen(
                                     text = currentItem.fileName,
                                     style = MaterialTheme.typography.bodyLarge.copy(
                                         fontWeight = FontWeight.Bold,
-                                        color = TextPrimary
+                                        color = GlassTextPrimary
                                     ),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = currentItem.formattedSize,
+                                    text = "${currentItem.formattedTransferred} / ${currentItem.formattedSize}",
                                     style = MaterialTheme.typography.bodySmall.copy(
-                                        color = TextSecondary
+                                        color = GlassTextSecondary
                                     )
                                 )
                             }
@@ -268,7 +251,7 @@ fun ActiveTransferScreen(
 
                         Spacer(modifier = Modifier.height(18.dp))
 
-                        // Progress Bar with percentage on right
+                        // Glowing Blue/Cyan Progress Bar
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
@@ -279,17 +262,34 @@ fun ActiveTransferScreen(
                                     .weight(1f)
                                     .height(8.dp)
                                     .clip(RoundedCornerShape(4.dp)),
-                                color = ShareItBlue,
-                                trackColor = Color(0xFFE2E8F0)
+                                color = ElectricPillCyan,
+                                trackColor = Color(0xFFDCE7F9)
                             )
-                            Spacer(modifier = Modifier.width(12.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
                             Text(
                                 text = "${(uiState.overallTransferProgress * 100).toInt()}%",
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = TextPrimary
+                                    color = GlassTextPrimary
                                 )
                             )
+                            if (isFinished) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .size(18.dp)
+                                        .clip(CircleShape)
+                                        .background(EmeraldPillGreen),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Done",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                }
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(22.dp))
@@ -302,14 +302,14 @@ fun ActiveTransferScreen(
                             Column {
                                 Text(
                                     text = "Speed",
-                                    style = MaterialTheme.typography.labelSmall.copy(color = TextSecondary)
+                                    style = MaterialTheme.typography.labelSmall.copy(color = GlassTextSecondary)
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = if (isFinished) "Finished" else "${(uiState.currentSpeedBytesPerSec / (1024 * 1024)).coerceAtLeast(1)} MB/s",
                                     style = MaterialTheme.typography.bodyLarge.copy(
                                         fontWeight = FontWeight.Bold,
-                                        color = TextPrimary
+                                        color = GlassTextPrimary
                                     )
                                 )
                             }
@@ -317,7 +317,7 @@ fun ActiveTransferScreen(
                             Column {
                                 Text(
                                     text = "Time remaining",
-                                    style = MaterialTheme.typography.labelSmall.copy(color = TextSecondary)
+                                    style = MaterialTheme.typography.labelSmall.copy(color = GlassTextSecondary)
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 val etaFormatted = String.format("00:%02d", uiState.etaSeconds.coerceIn(0, 59))
@@ -325,7 +325,7 @@ fun ActiveTransferScreen(
                                     text = if (isFinished) "00:00" else etaFormatted,
                                     style = MaterialTheme.typography.bodyLarge.copy(
                                         fontWeight = FontWeight.Bold,
-                                        color = TextPrimary
+                                        color = GlassTextPrimary
                                     )
                                 )
                             }
@@ -333,48 +333,89 @@ fun ActiveTransferScreen(
                             Column {
                                 Text(
                                     text = "Total",
-                                    style = MaterialTheme.typography.labelSmall.copy(color = TextSecondary)
+                                    style = MaterialTheme.typography.labelSmall.copy(color = GlassTextSecondary)
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = "${uiState.activeTransfers.size} files (${ShareFileItem.formatBytes(uiState.totalTransferBytes)})",
                                     style = MaterialTheme.typography.bodyLarge.copy(
                                         fontWeight = FontWeight.Bold,
-                                        color = TextPrimary
+                                        color = GlassTextPrimary
                                     )
                                 )
                             }
                         }
                     }
+                }
+            }
 
-                    Spacer(modifier = Modifier.height(26.dp))
+            Spacer(modifier = Modifier.weight(1f))
 
-                    // Cancel or Done button
-                    if (isFinished) {
-                        Button(
-                            onClick = onBack,
-                            colors = ButtonDefaults.buttonColors(containerColor = ShareItBlue),
-                            shape = RoundedCornerShape(22.dp),
-                            modifier = Modifier
-                                .testTag("btn_done_transfer")
-                                .fillMaxWidth()
-                                .height(46.dp)
-                        ) {
-                            Text("Done", color = Color.White, fontWeight = FontWeight.Bold)
-                        }
-                    } else {
-                        OutlinedButton(
-                            onClick = onBack,
-                            shape = RoundedCornerShape(22.dp),
-                            modifier = Modifier
-                                .testTag("btn_cancel_transfer")
-                                .fillMaxWidth()
-                                .height(46.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1))
-                        ) {
-                            Text("Cancel", color = TextSecondary, fontWeight = FontWeight.SemiBold)
+            // Bottom Action Pill Button (Matching Screen 5)
+            if (isFinished) {
+                Button(
+                    onClick = onBack,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                    shape = RoundedCornerShape(26.dp),
+                    contentPadding = PaddingValues(0.dp),
+                    modifier = Modifier
+                        .testTag("btn_done_transfer")
+                        .fillMaxWidth()
+                        .height(50.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.horizontalGradient(listOf(ElectricPillBlue, ElectricPillCyan)),
+                                RoundedCornerShape(26.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White.copy(alpha = 0.25f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Done",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Completed",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    fontSize = 15.sp
+                                )
+                            )
                         }
                     }
+                }
+            } else {
+                OutlinedButton(
+                    onClick = onBack,
+                    shape = RoundedCornerShape(26.dp),
+                    modifier = Modifier
+                        .testTag("btn_cancel_transfer")
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.6f))
+                ) {
+                    Text(
+                        text = "Cancel",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = Color.White,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    )
                 }
             }
         }
