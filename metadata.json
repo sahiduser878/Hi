@@ -1,0 +1,6 @@
+{
+  "name": "SwiftShare",
+  "description": "High-speed file transfer and share app with peer radar, direct Wi-Fi hotspot sharing, and multi-category file manager.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

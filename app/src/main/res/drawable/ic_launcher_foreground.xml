@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Glowing backdrop circle -->
+    <path
+        android:pathData="M54,28 A26,26 0 1,0 54,80 A26,26 0 1,0 54,28"
+        android:fillColor="#1500E5FF" />
+
+    <!-- Upper Transfer Arrow (Rightwards / Sending) -->
+    <path
+        android:pathData="M34,44 L60,44 C65,44 68,41 68,36 L68,33 L78,46 L68,59 L68,56 C68,51 65,48 60,48 L34,48 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="34"
+                android:startY="33"
+                android:endX="78"
+                android:endY="59"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#00E5FF" />
+                <item android:offset="1.0" android:color="#2979FF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Speed dot / packet 1 -->
+    <path
+        android:pathData="M27,46 A2.5,2.5 0 1,0 27,41 A2.5,2.5 0 1,0 27,46"
+        android:fillColor="#80D8FF" />
+
+    <!-- Lower Transfer Arrow (Leftwards / Receiving) -->
+    <path
+        android:pathData="M74,64 L48,64 C43,64 40,67 40,72 L40,75 L30,62 L40,49 L40,52 C40,57 43,60 48,60 L74,60 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="74"
+                android:startY="75"
+                android:endX="30"
+                android:endY="49"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#B388FF" />
+                <item android:offset="1.0" android:color="#7C4DFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Speed dot / packet 2 -->
+    <path
+        android:pathData="M81,62 A2.5,2.5 0 1,0 81,57 A2.5,2.5 0 1,0 81,62"
+        android:fillColor="#E040FB" />
+
+    <!-- Center sparkle indicator -->
+    <path
+        android:pathData="M54,51 L55.2,53 L57.2,54 L55.2,55 L54,57 L52.8,55 L50.8,54 L52.8,53 Z"
+        android:fillColor="#FFFFFF" />
+
+</vector>
